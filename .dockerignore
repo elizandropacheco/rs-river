@@ -1,0 +1,7 @@
+**/node_modules
+**/data/*.json
+server/public
+npm-debug.log
+.git
+.DS_Store
+*.zip

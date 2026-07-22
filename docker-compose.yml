@@ -1,0 +1,14 @@
+services:
+  dashboard:
+    build: .
+    image: rios-dashboard:latest
+    container_name: rios-dashboard
+    ports:
+      - "8080:8080"
+    environment:
+      # Intervalo (min) entre as coletas no nivelguaiba.com.br
+      - CRAWL_INTERVAL_MIN=5
+    volumes:
+      # Persiste o histórico de elevação acumulado entre reinícios
+      - ./data:/app/data
+    restart: unless-stopped

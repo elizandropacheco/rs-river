@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>RS River · Bacia do Guaíba — Guerreiros do Humaitá</title>
+  <meta name="description" content="Monitoramento em tempo real do nível dos rios da Bacia do Guaíba (RS). Um projeto Guerreiros do Humaitá." />
+  <meta property="og:title" content="RS River · Monitoramento dos Rios da Bacia do Guaíba" />
+  <meta property="og:description" content="Nível dos rios em tempo real — um projeto Guerreiros do Humaitá." />
+  <meta property="og:image" content="https://guerreirosdohumaita.com.br/wp-content/uploads/2024/05/icon-guerreiros-preto.png" />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%8C%8A%3C/text%3E%3C/svg%3E" />
+  <link rel="stylesheet" href="./styles.css" />
+  <!-- React sem bundler: carregado como ESM. Requer internet (o app já
+       depende de internet para o crawler). -->
+  <script type="importmap">
+  {
+    "imports": {
+      "react": "https://esm.sh/react@18.3.1",
+      "react-dom/client": "https://esm.sh/react-dom@18.3.1/client",
+      "htm": "https://esm.sh/htm@3.1.1",
+      "htm/react": "https://esm.sh/htm@3.1.1/react?deps=react@18.3.1"
+    }
+  }
+  </script>
+</head>
+<body>
+  <div id="root">
+    <div class="boot">
+      <div class="boot-wave">🌊</div>
+      <p>Carregando painel dos rios…</p>
+    </div>
+  </div>
+  <noscript>Este painel precisa de JavaScript habilitado.</noscript>
+  <script type="module" src="./app.js"></script>
+  <script type="module">
+    // Tela de erro clara caso o CDN do React não carregue.
+    window.addEventListener("error", (e) => {
+      if (String(e?.message || "").match(/import|module|fetch/i)) {
+        const r = document.getElementById("root");
+        if (r && !r.dataset.mounted) {
+          r.innerHTML = '<div class="boot"><div class="boot-wave">⚠️</div>' +
+            '<p>Não foi possível carregar as bibliotecas (React) da internet.<br/>' +
+            'Verifique a conexão e recarregue a página.</p></div>';
+        }
+      }
+    });
+  </script>
+</body>
+</html>

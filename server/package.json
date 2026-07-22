@@ -1,0 +1,12 @@
+{
+  "name": "rios-dashboard-server",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Crawler + API + WebSocket (Node nativo, sem dependências) para a Bacia do Guaíba",
+  "engines": { "node": ">=18" },
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js"
+  }
+}

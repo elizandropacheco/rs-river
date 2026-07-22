@@ -1,0 +1,15 @@
+# dados acumulados em runtime
+data/*.json
+server/data/*.json
+
+# dependências (o projeto não usa, mas por segurança)
+node_modules/
+
+# artefatos locais
+_to_delete/
+*.zip
+npm-debug.log
+.DS_Store
+
+# build local do front (gerado por `cp -r ../web ./public`)
+server/public/
