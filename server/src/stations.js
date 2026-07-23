@@ -1,7 +1,9 @@
 // Metadados fixos das estações monitoradas na Bacia do Guaíba.
 // slug = caminho usado em https://nivelguaiba.com.br/<slug>
 export const STATIONS = [
-  { slug: "portoalegre",       city: "Porto Alegre",         river: "Rio Guaíba",   flood: 3.00,  lat: -30.0346, lng: -51.2177 },
+  // wind: estação sujeita ao represamento por vento sul (sistema Guaíba /
+  // Lagoa dos Patos). Só faz sentido no Guaíba — rios de encosta não sofrem isso.
+  { slug: "portoalegre",       city: "Porto Alegre",         river: "Rio Guaíba",   flood: 3.00,  lat: -30.0346, lng: -51.2177, wind: true },
   { slug: "saoleopoldo",       city: "São Leopoldo",         river: "Rio dos Sinos", flood: 4.50,  lat: -29.7603, lng: -51.1472 },
   { slug: "taquara",           city: "Taquara",              river: "Rio dos Sinos", flood: 6.00,  lat: -29.6506, lng: -50.7803 },
   { slug: "lajeado",           city: "Lajeado",              river: "Rio Taquari",  flood: 19.00, lat: -29.4669, lng: -51.9611 },

@@ -238,9 +238,51 @@ function StationCard({ st, points, riverColor, onOpen, index }) {
       </div>
 
       <div class="card-foot">
-        <span>${st.live ? html`<span class="live-tag">● ao vivo</span>` : html`<span class="seed-tag">cache/seed</span>`}</span>
+        <span>
+          ${st.live ? html`<span class="live-tag">● ao vivo</span>` : html`<span class="seed-tag">cache/seed</span>`}
+          ${hasSouthWind(st.wind) ? html`<span class="wind-tag" title="Vento sul previsto: represa o Guaíba e eleva o nível">🌬️ vento sul</span>` : null}
+        </span>
         <span class="tap-hint">toque para detalhes →</span>
       </div>
+    </div>`;
+}
+
+/* ---------------- vento sul (represamento) ---------------- */
+const WIND_EFFECT = {
+  represa: { label: "represa", hint: "vento sul segura a água" },
+  "represa-fraco": { label: "represa fraco", hint: "vento sul, mas leve" },
+  escoa: { label: "escoa", hint: "vento norte ajuda a baixar" },
+  neutro: { label: "neutro", hint: "sem efeito relevante" },
+};
+const weekdayLabel = (iso) => {
+  const d = new Date(`${iso}T12:00:00`);
+  if (isNaN(d)) return iso;
+  return d.toLocaleDateString("pt-BR", { weekday: "short", day: "2-digit", month: "2-digit" });
+};
+// Há vento sul relevante nos próximos dias?
+const hasSouthWind = (wind) => (wind || []).slice(0, 4).some((d) => d.effect === "represa");
+
+function WindPanel({ wind }) {
+  return html`
+    <div class="wind-box">
+      <h3>🌬️ Vento sul · represamento do Guaíba</h3>
+      <p class="wind-legend">
+        Vento do quadrante <b>sul</b> empurra a água da Lagoa dos Patos de volta e <b>represa</b> a saída do
+        Guaíba, elevando o nível em Porto Alegre <b>mesmo sem chuva</b> — episódios fortes costumam somar
+        <b>30 a 50 cm</b>. Vento do <b>norte</b> facilita o escoamento e ajuda o nível a baixar.
+      </p>
+      <div class="wind-days">
+        ${(wind || []).map((d) => html`
+          <div key=${d.date} class=${`wday ef-${d.effect}`} title=${WIND_EFFECT[d.effect]?.hint || ""}>
+            <div class="wd-date">${weekdayLabel(d.date)}</div>
+            <div class="wd-arrow" style=${{ transform: `rotate(${(d.deg ?? 0) + 180}deg)` }}>↑</div>
+            <div class="wd-dir">${d.dir}</div>
+            <div class="wd-spd">${fmt(d.speed, 0)}<span> km/h</span></div>
+            ${d.gust != null ? html`<div class="wd-gust">raj. ${fmt(d.gust, 0)}</div>` : null}
+            <div class="wd-tag">${WIND_EFFECT[d.effect]?.label || "—"}</div>
+          </div>`)}
+      </div>
+      <p class="wind-src">Direção e velocidade do vento: Open-Meteo · efeito de represamento conforme MetSul/Defesa Civil.</p>
     </div>`;
 }
 
@@ -349,6 +391,8 @@ function Modal({ st, points, riverColor, onClose }) {
           ${stat("Última leitura", fmtTime(st.ts), { sub: st.live ? "● ao vivo" : "cache/seed" })}
           ${stat("Situação", STATUS_LABEL[st.status], { color: stColor })}
         </div>
+
+        ${st.wind?.length ? html`<${WindPanel} wind=${st.wind}/>` : null}
 
         <div class="m-links">
           <a class="srclink" href=${st.url} target="_blank" rel="noopener">🔗 Ver fonte no nivelguaiba.com.br</a>

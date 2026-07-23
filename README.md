@@ -55,6 +55,9 @@ automática:
 - **Mapa da bacia** sobre o contorno do Rio Grande do Sul, com as estações
   georreferenciadas e **setas indicando o sentido da correnteza** (montante →
   jusante) até o Delta do Jacuí, o Guaíba e a Lagoa dos Patos.
+- **Vento sul em Porto Alegre**: previsão de 7 dias com a direção dominante e o
+  efeito no Guaíba — vento do quadrante sul **represa** a saída para a Lagoa dos
+  Patos e eleva o nível mesmo sem chuva; vento norte favorece o escoamento.
 - **Nível atual** de cada rio, com contador animado e **coluna d'água** que se
   enche conforme a proximidade da cota de inundação.
 - **Tendência em tempo real** (cm/h) — se o rio está subindo ou baixando e quão

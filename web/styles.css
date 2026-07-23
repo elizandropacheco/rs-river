@@ -338,6 +338,35 @@ body::before{ /* leve textura de ruído/vinheta */
 .stat .v.tinted{color:var(--vc)}
 .stat .v-sub{font-size:11px;color:var(--muted);margin-top:2px;font-weight:600}
 
+/* ---------- vento sul (represamento do Guaíba) ---------- */
+.wind-box{margin-top:16px;background:rgba(56,189,248,.05);border:1px solid var(--border);
+  border-radius:14px;padding:16px 18px}
+.wind-box h3{font-size:15px;font-weight:800;margin-bottom:8px}
+.wind-legend{font-size:13px;line-height:1.6;color:var(--muted)}
+.wind-legend b{color:var(--txt)}
+.wind-days{display:grid;grid-template-columns:repeat(auto-fit,minmax(96px,1fr));gap:9px;margin-top:14px}
+.wday{background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:11px;
+  padding:9px 6px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:3px}
+.wd-date{font-size:10.5px;color:var(--muted);text-transform:capitalize;font-weight:600}
+.wd-arrow{font-size:19px;line-height:1;color:var(--txt);transition:transform .3s}
+.wd-dir{font-size:12px;font-weight:800}
+.wd-spd{font-size:13px;font-weight:800}
+.wd-spd span{font-size:10px;font-weight:600;color:var(--muted)}
+.wd-gust{font-size:10px;color:var(--dim);font-weight:600}
+.wd-tag{font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.4px;
+  padding:2px 7px;border-radius:999px;margin-top:2px;white-space:nowrap}
+.wday.ef-represa{border-color:rgba(239,68,68,.5);background:rgba(239,68,68,.1)}
+.wday.ef-represa .wd-tag{background:rgba(239,68,68,.2);color:#f87171}
+.wday.ef-represa .wd-arrow{color:#f87171}
+.wday.ef-represa-fraco{border-color:rgba(234,179,8,.42)}
+.wday.ef-represa-fraco .wd-tag{background:rgba(234,179,8,.16);color:#facc15}
+.wday.ef-escoa .wd-tag{background:rgba(34,197,94,.14);color:#4ade80}
+.wday.ef-escoa .wd-arrow{color:#4ade80}
+.wday.ef-neutro .wd-tag{background:rgba(255,255,255,.06);color:var(--muted)}
+.wind-src{font-size:11px;color:var(--dim);margin-top:12px}
+.wind-tag{font-size:10px;color:#7dd3fc;background:rgba(56,189,248,.14);padding:2px 7px;
+  border-radius:6px;margin-left:6px;white-space:nowrap}
+
 .m-links{display:flex;gap:18px;flex-wrap:wrap;margin-top:18px}
 .modal .srclink{display:inline-flex;gap:6px;align-items:center;color:var(--accent);
   text-decoration:none;font-size:13px;font-weight:600}

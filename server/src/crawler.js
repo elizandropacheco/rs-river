@@ -136,12 +136,50 @@ function parseWeather(arr) {
   return { today, forecast, week: fc.length ? +week.toFixed(1) : null };
 }
 
+/* ---------------- vento sul (represamento do Guaíba) ----------------
+   No sistema Guaíba/Lagoa dos Patos, vento do quadrante SUL empurra a água da
+   lagoa de volta e represa a saída do Guaíba, elevando o nível em Porto Alegre
+   mesmo sem chuva (episódios fortes somam 30–50 cm). Vento NORTE favorece o
+   escoamento. A previsão de direção vem do Open-Meteo (grátis, sem chave) —
+   o weather.json do nivelguaiba só traz direção da leitura atual. */
+const COMPASS = ["N", "NNE", "NE", "ENE", "L", "ESE", "SE", "SSE", "S", "SSO", "SO", "OSO", "O", "ONO", "NO", "NNO"];
+const dirLabel = (deg) => COMPASS[Math.round((((deg % 360) + 360) % 360) / 22.5) % 16];
+
+function windEffect(deg, speed) {
+  if (deg == null) return "neutro";
+  const d = ((deg % 360) + 360) % 360;
+  if (d >= 135 && d <= 225) return (speed || 0) >= 18 ? "represa" : "represa-fraco";
+  if (d >= 315 || d <= 45) return "escoa";
+  return "neutro";
+}
+
+async function fetchWind(station) {
+  const url = "https://api.open-meteo.com/v1/forecast" +
+    `?latitude=${station.lat}&longitude=${station.lng}` +
+    "&daily=wind_speed_10m_max,wind_gusts_10m_max,wind_direction_10m_dominant" +
+    "&timezone=America%2FSao_Paulo&forecast_days=7";
+  const day = (await fetchJson(url))?.daily;
+  if (!day?.time) return null;
+  return day.time.map((t, i) => {
+    const deg = day.wind_direction_10m_dominant?.[i] ?? null;
+    const speed = day.wind_speed_10m_max?.[i] ?? null;
+    return {
+      date: t,
+      deg,
+      dir: deg == null ? "—" : dirLabel(deg),
+      speed,
+      gust: day.wind_gusts_10m_max?.[i] ?? null,
+      effect: windEffect(deg, speed),
+    };
+  });
+}
+
 export async function crawlStation(station) {
   const prev = store.getSnapshot(station.slug) || {};
   const seed = SEED[station.slug] || {};
   const base = `${BASE_URL}/${station.slug}`;
 
-  let level = null, rate = null, rain = null, ok = false;
+  let level = null, rate = null, rain = null, wind = null, ok = false;
   try {
     // 1) série de nível — longa na 1ª vez (popular histórico), depois só 7 dias
     const deep = store.getHistory(station.slug).length < SEED_MIN_POINTS;
@@ -158,6 +196,9 @@ export async function crawlStation(station) {
 
     // 3) chuva / previsão
     rain = parseWeather(await fetchJson(`${base}.weather.json`).catch(() => null));
+
+    // 4) vento (só onde o represamento importa: Guaíba)
+    if (station.wind) wind = await fetchWind(station).catch(() => null);
   } catch (e) {
     console.warn(`[crawler] ${station.slug}: ${e.message} (usando dados anteriores/seed)`);
   }
@@ -182,6 +223,7 @@ export async function crawlStation(station) {
       forecast: pick(rain?.forecast, prev.rain?.forecast, seed.rain?.forecast, 0),
       week: pick(rain?.week, prev.rain?.week, seed.rain?.week, 0),
     },
+    wind: wind || prev.wind || null,
     marginToFlood: flood != null && lvl != null ? +(flood - lvl).toFixed(2) : null,
     ts: nowIso(),
     live: ok,
