@@ -1,9 +1,13 @@
-// Crawler do nivelguaiba.com.br
-// Estratégia em camadas para ser resiliente a mudanças de layout:
-//   1) tenta achar JSON embutido (__NEXT_DATA__ / dados estruturados)
-//   2) cai para extração por regex sobre o texto (rótulos em português)
-//   3) qualquer campo não encontrado mantém o valor anterior / seed
-// O valor mais importante (nível atual) tem várias estratégias de captura.
+// Coletor do nivelguaiba.com.br usando os endpoints JSON públicos do próprio
+// site (mesma fonte, muito mais estável que raspar o HTML):
+//   • /<slug>.json / .7days.json / .30days.json / .90days.json  → série de nível
+//   • /<slug>.weather.json                                        → chuva/previsão
+// A cota de inundação e o recorde histórico são estáveis e vêm dos metadados
+// (stations.js) / seed. A tendência (cm/h) é calculada sobre a série.
+//
+// Estratégia de histórico: na primeira coleta (histórico raso) busca uma série
+// longa para POPULAR dados passados; nos ciclos seguintes busca só os últimos
+// 7 dias e mescla (dedup por timestamp) — barato e autocorretivo.
 
 import { STATIONS, BASE_URL } from "./stations.js";
 import { SEED } from "./seed.js";
@@ -12,6 +16,11 @@ import * as store from "./store.js";
 const UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
   "(KHTML, like Gecko) Chrome/126.0 Safari/537.36";
+
+// Faixa usada para popular o histórico na primeira coleta: 7days|30days|90days.
+const SEED_RANGE = process.env.HISTORY_SEED_RANGE || "30days";
+// Abaixo deste nº de pontos o histórico é considerado "raso" e busca a série longa.
+const SEED_MIN_POINTS = 700; // ~7 dias a cada 15 min
 
 // Converte "21.34" ou "21,34" para número respeitando os dois formatos.
 function parseNumber(raw) {
@@ -23,18 +32,6 @@ function parseNumber(raw) {
   return Number.isFinite(v) ? v : null;
 }
 
-function stripHtml(html) {
-  return html
-    .replace(/<script[\s\S]*?<\/script>/gi, " ")
-    .replace(/<style[\s\S]*?<\/style>/gi, " ")
-    .replace(/<[^>]+>/g, " ")
-    .replace(/&nbsp;/gi, " ")
-    .replace(/&amp;/gi, "&")
-    .replace(/&aacute;/gi, "á").replace(/&atilde;/gi, "ã").replace(/&ccedil;/gi, "ç")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
 function statusFor(level, flood) {
   if (level == null || !flood) return "normal";
   const r = level / flood;
@@ -44,129 +41,112 @@ function statusFor(level, flood) {
   return "normal";
 }
 
-// --- estratégia 2: regex sobre o texto -----------------------------------
-function parseFromText(text, station) {
-  const out = {};
-
-  // Cota de inundação
-  const cota = text.match(/cota\s+de\s+inunda[çc][ãa]o[:\s]*([\d.,]+)/i);
-  if (cota) out.flood = parseNumber(cota[1]);
-
-  // Taxa de subida/descida (cm/h)
-  const rate = text.match(/([-−]?\s*[\d.,]+)\s*cm\s*\/?\s*h(?:ora)?/i);
-  if (rate) {
-    let v = parseNumber(rate[1].replace("−", "-"));
-    if (/desc|baix|caindo/i.test(text.slice(Math.max(0, rate.index - 30), rate.index))) v = -Math.abs(v);
-    out.rate = v;
-  }
-
-  // Pico / recorde histórico + data
-  const rec = text.match(/(?:pico\s+hist[oó]rico|recorde|maior\s+n[ií]vel)[^\d]{0,40}([\d.,]+)\s*m[^\d]{0,12}(\d{2}\/\d{2}\/\d{4})/i);
-  if (rec) out.record = { level: parseNumber(rec[1]), date: brToIso(rec[2]) };
-
-  // Precipitação
-  const choveu = text.match(/choveu\s+hoje[:\s]*([\d.,]+)\s*mm/i);
-  if (choveu) out.rainToday = parseNumber(choveu[1]);
-  const prev = text.match(/previs[ãa]o\s+hoje[:\s]*([\d.,]+)\s*mm/i);
-  if (prev) out.rainForecast = parseNumber(prev[1]);
-  const week = text.match(/(?:7\s*dias|pr[oó]ximos\s+7)[^\d]{0,40}?([\d.,]+)\s*mm/i);
-  if (week) out.rainWeek = parseNumber(week[1]);
-
-  // Histórico recente: pares HH:MM + nível
-  const pairs = [];
-  const re = /(\d{1,2}:\d{2})\s+([\d]{1,3}[.,]\d{1,2})(?!\d)/g;
-  let m;
-  while ((m = re.exec(text)) !== null) {
-    const t = m[1];
-    const v = parseNumber(m[2]);
-    if (v != null && v >= 0 && v < 60) pairs.push([t.padStart(5, "0"), v]);
-  }
-  // remove duplicados de horário mantendo a ordem
-  const seen = new Set();
-  out.history = pairs.filter(([t]) => (seen.has(t) ? false : (seen.add(t), true)));
-
-  // Nível atual: última leitura do histórico (mais confiável),
-  // senão número + m no <title>/topo.
-  if (out.history.length) out.level = out.history[out.history.length - 1][1];
-
-  return out;
-}
-
-function brToIso(br) {
-  const [d, mo, y] = br.split("/");
-  return `${y}-${mo}-${d}`;
-}
-
-// --- estratégia 1: JSON embutido -----------------------------------------
-function parseFromJson(html) {
-  try {
-    const m = html.match(/<script[^>]*id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/);
-    if (!m) return null;
-    const data = JSON.parse(m[1]);
-    const found = {};
-    const visit = (o) => {
-      if (!o || typeof o !== "object") return;
-      for (const [k, v] of Object.entries(o)) {
-        const key = k.toLowerCase();
-        if (typeof v === "number") {
-          if (/(^|_)(nivel|level|cota_atual|leitura)/.test(key) && found.level == null) found.level = v;
-          if (/inunda|cota_alerta|threshold/.test(key) && found.flood == null) found.flood = v;
-        }
-        if (typeof v === "object") visit(v);
-      }
-    };
-    visit(data);
-    return Object.keys(found).length ? found : null;
-  } catch {
-    return null;
-  }
-}
-
-// Título da página costuma trazer "X.XX m - Cidade | Nível Guaíba"
-function levelFromTitle(html) {
-  const t = html.match(/<title>([^<]*)<\/title>/i);
-  if (!t) return null;
-  const m = t[1].match(/([\d]{1,3}[.,]\d{1,2})\s*m\b/);
-  return m ? parseNumber(m[1]) : null;
-}
-
-async function fetchHtml(url) {
+async function fetchJson(url) {
   const ctrl = new AbortController();
   const to = setTimeout(() => ctrl.abort(), 20000);
   try {
-    const res = await fetch(url, { headers: { "User-Agent": UA, "Accept-Language": "pt-BR" }, signal: ctrl.signal });
+    const res = await fetch(url, {
+      headers: { "User-Agent": UA, Accept: "application/json", "Accept-Language": "pt-BR" },
+      signal: ctrl.signal,
+    });
     if (!res.ok) throw new Error("HTTP " + res.status);
-    return await res.text();
+    return await res.json();
   } finally {
     clearTimeout(to);
   }
 }
 
+// "2026-07-16 10:30" -> "2026-07-16T10:30"
+const normTs = (k) => String(k).replace(" ", "T");
+
+// Remove quedas bruscas (falha de sensor / dropout, ex.: 20 m → 0,02 m).
+// Usa a mediana de uma janela ao redor de cada ponto: como a mediana ignora
+// alguns valores ruins, pega até dropouts consecutivos, sem cortar subidas
+// reais (numa cheia a mediana da janela acompanha o nível).
+function despike(pts) {
+  if (pts.length < 7) return pts;
+  const vals = pts.map((p) => p.v);
+  const W = 12; // ±12 pontos (~6 h)
+  const out = [];
+  for (let i = 0; i < pts.length; i++) {
+    const lo = Math.max(0, i - W), hi = Math.min(pts.length - 1, i + W);
+    const win = vals.slice(lo, hi + 1).sort((a, b) => a - b);
+    const med = win[Math.floor(win.length / 2)];
+    if (med > 0 && pts[i].v < 0.4 * med) continue; // dropout: descarta
+    out.push(pts[i]);
+  }
+  return out.length ? out : pts;
+}
+
+// Objeto {timestamp: nível} -> [{t, v}] ordenado, ignorando leituras inválidas.
+function seriesToPoints(obj) {
+  if (!obj || typeof obj !== "object") return [];
+  const pts = [];
+  for (const [k, v] of Object.entries(obj)) {
+    const val = typeof v === "number" ? v : parseNumber(v);
+    if (val != null && val > 0 && val < 100) pts.push({ t: normTs(k), v: val });
+  }
+  pts.sort((a, b) => (a.t < b.t ? -1 : a.t > b.t ? 1 : 0));
+  return despike(pts);
+}
+
+// Tendência em cm/h a partir da série (usa uma janela de ~1h para suavizar).
+function computeRate(points) {
+  if (!points || points.length < 2) return null;
+  const last = points[points.length - 1];
+  const lastMs = Date.parse(last.t);
+  if (Number.isNaN(lastMs)) return null;
+  let ref = points[points.length - 2];
+  for (let i = points.length - 2; i >= 0; i--) {
+    ref = points[i];
+    if (lastMs - Date.parse(ref.t) >= 55 * 60 * 1000) break;
+  }
+  const hours = (lastMs - Date.parse(ref.t)) / 3.6e6;
+  if (!(hours > 0)) return null;
+  return +(((last.v - ref.v) * 100) / hours).toFixed(1);
+}
+
+// weather.json -> chuva de hoje, previsão de hoje e acumulado da semana.
+function parseWeather(arr) {
+  if (!Array.isArray(arr)) return null;
+  const num = (v) => (typeof v === "number" ? v : parseNumber(v));
+  const hoje = arr.find((x) => x && x.type === "HOJE");
+  const fc = arr.filter((x) => x && x.type === "FORECAST");
+  const today = hoje ? num(hoje.rain) : fc[0] ? num(fc[0].rain) : null;
+  const forecast = fc[0] ? num(fc[0].rain) : today;
+  const week = fc.slice(0, 7).reduce((s, x) => s + (num(x.rain) || 0), 0);
+  return { today, forecast, week: fc.length ? +week.toFixed(1) : null };
+}
+
 export async function crawlStation(station) {
   const prev = store.getSnapshot(station.slug) || {};
   const seed = SEED[station.slug] || {};
-  const url = `${BASE_URL}/${station.slug}`;
+  const base = `${BASE_URL}/${station.slug}`;
 
-  let parsed = {};
-  let ok = false;
+  let level = null, rate = null, rain = null, ok = false;
   try {
-    const html = await fetchHtml(url);
-    const text = stripHtml(html);
-    const json = parseFromJson(html) || {};
-    const textData = parseFromText(text, station);
-    const titleLevel = levelFromTitle(html);
-    parsed = { ...textData, ...json };
-    if (parsed.level == null && titleLevel != null) parsed.level = titleLevel;
-    ok = parsed.level != null;
+    // 1) série de nível — longa na 1ª vez (popular histórico), depois só 7 dias
+    const deep = store.getHistory(station.slug).length < SEED_MIN_POINTS;
+    let series = await fetchJson(`${base}.${deep ? SEED_RANGE : "7days"}.json`).catch(() => null);
+    if (!series) series = await fetchJson(`${base}.json`).catch(() => null);
+    const pts = seriesToPoints(series || {});
+    if (pts.length) {
+      store.mergeSeries(station.slug, pts);
+      level = pts[pts.length - 1].v;
+      ok = true;
+    }
+    // 2) tendência sobre a série já consolidada
+    rate = computeRate(store.getHistory(station.slug));
+
+    // 3) chuva / previsão
+    rain = parseWeather(await fetchJson(`${base}.weather.json`).catch(() => null));
   } catch (e) {
     console.warn(`[crawler] ${station.slug}: ${e.message} (usando dados anteriores/seed)`);
   }
 
-  // mescla: parsed > snapshot anterior > seed > metadado fixo
-  const level = pick(parsed.level, prev.level, seed.level);
-  const flood = pick(parsed.flood, prev.flood, seed.flood, station.flood);
-  const record = parsed.record || prev.record || seed.record || null;
-  const history = (parsed.history && parsed.history.length ? parsed.history : null);
+  // mescla: coletado > snapshot anterior > seed > metadado fixo
+  const flood = pick(prev.flood, seed.flood, station.flood);
+  const lvl = pick(level, prev.level, seed.level);
 
   const snapshot = {
     slug: station.slug,
@@ -174,31 +154,21 @@ export async function crawlStation(station) {
     river: station.river,
     lat: station.lat,
     lng: station.lng,
-    level,
+    level: lvl,
     flood,
-    status: statusFor(level, flood),
-    rate: pick(parsed.rate, seed.rate, 0),
-    record,
+    status: statusFor(lvl, flood),
+    rate: pick(rate, prev.rate, seed.rate, 0),
+    record: prev.record || seed.record || null,
     rain: {
-      today: pick(parsed.rainToday, seed.rain?.today, 0),
-      forecast: pick(parsed.rainForecast, seed.rain?.forecast, 0),
-      week: pick(parsed.rainWeek, seed.rain?.week, 0),
+      today: pick(rain?.today, prev.rain?.today, seed.rain?.today, 0),
+      forecast: pick(rain?.forecast, prev.rain?.forecast, seed.rain?.forecast, 0),
+      week: pick(rain?.week, prev.rain?.week, seed.rain?.week, 0),
     },
-    marginToFlood: flood != null && level != null ? +(flood - level).toFixed(2) : null,
+    marginToFlood: flood != null && lvl != null ? +(flood - lvl).toFixed(2) : null,
     ts: nowIso(),
     live: ok,
-    url,
+    url: base,
   };
-
-  // semeia o histórico de longo prazo na primeira execução
-  if (store.getHistory(station.slug).length === 0) {
-    const src = history || seed.history || [];
-    const today = new Date().toISOString().slice(0, 10);
-    store.seedHistory(
-      station.slug,
-      src.map(([t, v]) => ({ t: `${today}T${t}:00`, v }))
-    );
-  }
 
   store.record(station.slug, snapshot);
   return snapshot;

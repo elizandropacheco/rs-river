@@ -113,9 +113,10 @@ node src/index.js        # http://localhost:8080
 ```
 ┌──────────────┐   coleta a cada N min     ┌────────────────────┐
 │  crawler.js  │ ────────────────────────▶ │ nivelguaiba.com.br │
-└──────┬───────┘   (SGB/CPRM + ANA)        └────────────────────┘
-       │  parsing em camadas:
-       │  JSON embutido → regex nos rótulos PT → fallback seed
+└──────┬───────┘   endpoints JSON públicos  └────────────────────┘
+       │  /<slug>.7days.json  → série de nível
+       │  /<slug>.30days.json → popula histórico (1ª coleta)
+       │  /<slug>.weather.json → chuva/previsão   (fonte: SGB/CPRM + ANA)
        ▼
 ┌──────────────┐   REST /api/*  +  WebSocket /ws   ┌──────────────┐
 │  histórico   │ ────────────────────────────────▶ │  React (SPA) │
@@ -126,13 +127,16 @@ node src/index.js        # http://localhost:8080
 - **Backend** (`server/`): Node puro, **sem dependências externas** (usa apenas
   `http`, `crypto` e o `fetch` nativo). Serve a API REST, o WebSocket de tempo
   real e o front estático.
-- **Crawler** (`server/src/crawler.js`): coleta a página de cada estação e extrai
-  os dados de forma resiliente — primeiro tenta JSON embutido na página, depois
-  cai para expressões regulares sobre os rótulos em português; qualquer campo não
-  encontrado mantém o último valor conhecido ou o *seed* inicial. Se o layout do
-  site mudar, o ajuste fica isolado nesse arquivo.
-- **Histórico acumulado**: além do histórico recente do site, o app grava cada
-  leitura em `./data` e vai construindo a série de elevação ao longo do tempo.
+- **Crawler** (`server/src/crawler.js`): consome os **endpoints JSON públicos** do
+  próprio nivelguaiba (mesma fonte oficial SGB/CPRM + ANA, muito mais estável que
+  raspar HTML). Pega a série de nível (`.7days.json`), a chuva (`.weather.json`),
+  calcula a tendência (cm/h) sobre a série e remove picos de sensor (dropouts). A
+  cota de inundação e o recorde são estáveis e vêm dos metadados/seed; qualquer
+  campo indisponível mantém o último valor conhecido.
+- **Histórico populado + acumulado**: na primeira coleta busca uma série longa
+  (`.30days.json`, configurável via `HISTORY_SEED_RANGE`) para já abrir com dados
+  passados; nos ciclos seguintes mescla os últimos dias em `./data` (dedup por
+  timestamp), mantendo a série de elevação completa e autocorretiva.
 - **Frontend** (`web/`): React carregado como ES module (**sem etapa de build**),
   com gráficos SVG feitos à mão. Requer internet para carregar o React (o app já
   depende de internet para o crawler).
