@@ -8,6 +8,7 @@ export const STATIONS = [
   { slug: "bomretirodosul",    city: "Bom Retiro do Sul",    river: "Rio Taquari",  flood: 19.00, lat: -29.6039, lng: -51.9469 },
   { slug: "encantado",         city: "Encantado",            river: "Rio Taquari",  flood: 12.00, lat: -29.2361, lng: -51.8697 },
   { slug: "mucum",             city: "Muçum",                river: "Rio Taquari",  flood: 18.00, lat: -29.1667, lng: -51.8706 },
+  { slug: "rocasales",         city: "Roca Sales",           river: "Rio Taquari",  flood: 18.00, lat: -29.2587, lng: -51.8277 },
   { slug: "feliz",             city: "Feliz",                river: "Rio Caí",      flood: 9.00,  lat: -29.4517, lng: -51.3050 },
   { slug: "saosebastiaodocai", city: "São Sebastião do Caí", river: "Rio Caí",      flood: 10.00, lat: -29.5872, lng: -51.3767 },
   { slug: "gravatai",          city: "Gravataí",             river: "Rio Gravataí", flood: 4.75,  lat: -29.9444, lng: -50.9919 },

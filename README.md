@@ -48,9 +48,13 @@ se atualiza sozinha — para **antecipar decisões e proteger vidas**.
 Tudo numa dashboard estilo **Grafana**, escura, com efeitos visuais e atualização
 automática:
 
-- **13 estações** monitoradas na mesma tela — Porto Alegre, Lajeado, Encantado,
-  Muçum, São Sebastião do Caí, Taquara, Gravataí, Bom Retiro do Sul, Cachoeira do
-  Sul, Dona Francisca, Rio Pardo, São Leopoldo e Feliz.
+- **14 estações** monitoradas na mesma tela (cobertura completa da fonte) — Porto
+  Alegre, Lajeado, Encantado, Muçum, Roca Sales, São Sebastião do Caí, Taquara,
+  Gravataí, Bom Retiro do Sul, Cachoeira do Sul, Dona Francisca, Rio Pardo, São
+  Leopoldo e Feliz.
+- **Mapa da bacia** sobre o contorno do Rio Grande do Sul, com as estações
+  georreferenciadas e **setas indicando o sentido da correnteza** (montante →
+  jusante) até o Delta do Jacuí, o Guaíba e a Lagoa dos Patos.
 - **Nível atual** de cada rio, com contador animado e **coluna d'água** que se
   enche conforme a proximidade da cota de inundação.
 - **Tendência em tempo real** (cm/h) — se o rio está subindo ou baixando e quão

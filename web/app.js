@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { createRoot } from "react-dom/client";
 import htm from "htm";
+import { RS, projRS } from "./rs-outline.js";
 
 const html = htm.bind(React.createElement);
 
@@ -346,7 +347,7 @@ const GUAIBA = "portoalegre";
 // Ordem de jusante (o último ponto está mais próximo da foz/Guaíba).
 const FLOWS = [
   { river: "Rio Jacuí",     order: ["donafrancisca", "cachoeiradosul", "riopardo"] },
-  { river: "Rio Taquari",   order: ["mucum", "encantado", "lajeado", "bomretirodosul"] },
+  { river: "Rio Taquari",   order: ["mucum", "encantado", "rocasales", "lajeado", "bomretirodosul"] },
   { river: "Rio Caí",       order: ["feliz", "saosebastiaodocai"] },
   { river: "Rio dos Sinos", order: ["taquara", "saoleopoldo"] },
   { river: "Rio Gravataí",  order: ["gravatai"] },
@@ -355,7 +356,7 @@ const FLOWS = [
 // Direção do rótulo por estação (posições são fixas), escolhida à mão para
 // evitar sobreposição nos aglomerados. Fallback: lado com mais espaço.
 const LABEL_DIR = {
-  mucum: "right", encantado: "left", lajeado: "right", bomretirodosul: "right",
+  mucum: "right", encantado: "left", rocasales: "bottom", lajeado: "left", bomretirodosul: "left",
   donafrancisca: "right", cachoeiradosul: "bottom", riopardo: "top",
   feliz: "right", saosebastiaodocai: "right", saoleopoldo: "left",
   gravatai: "right", taquara: "bottom", portoalegre: "bottom",
@@ -395,28 +396,20 @@ function segArrows(pts) {
 }
 
 function MapView({ stations, rivers, onOpen }) {
+  // As estações são projetadas no MESMO espaço do contorno do RS (projRS),
+  // então ficam georreferenciadas sobre o mapa do estado. A viewBox é uma
+  // janela sobre esse mapa: enquadra a bacia + o litoral leste, mantendo os
+  // pontos bem espaçados (mostrar o estado inteiro amontoaria tudo).
   const layout = useMemo(() => {
     const pts = stations.filter((s) => s.lat != null && s.lng != null);
     if (pts.length < 2) return null;
-    const lats = pts.map((s) => s.lat), lngs = pts.map((s) => s.lng);
-    const latMin = Math.min(...lats), latMax = Math.max(...lats);
-    const lngMin = Math.min(...lngs), lngMax = Math.max(...lngs);
-    const meanLat = (latMin + latMax) / 2;
-    const kx = Math.cos((meanLat * Math.PI) / 180) * 111.32, ky = 110.57; // km por grau
-    const VBW = 1000, P = 96, BH = 128;
-    const geoW = (lngMax - lngMin) * kx || 1;
-    const geoH = (latMax - latMin) * ky || 1;
-    const contentW = VBW - 2 * P;
-    const scale = contentW / geoW;
-    const contentH = geoH * scale;
-    const VBH = contentH + 2 * P + BH;
     const coord = {};
-    for (const s of pts) coord[s.slug] = { x: P + (s.lng - lngMin) * kx * scale, y: P + (latMax - s.lat) * ky * scale };
-    return { VBW, VBH, coord, guaibaY: P + contentH };
+    for (const s of pts) coord[s.slug] = projRS(s.lat, s.lng);
+    return { X0: 1020, Y0: 575, VW: 990, VH: 530, coord };
   }, [stations]);
 
   if (!layout) return html`<div class="map-empty">Carregando mapa…</div>`;
-  const { VBW, VBH, coord } = layout;
+  const { X0, Y0, VW, VH, coord } = layout;
   const g = coord[GUAIBA];
 
   const riverEls = FLOWS.map((f) => {
@@ -435,7 +428,7 @@ function MapView({ stations, rivers, onOpen }) {
     const c = coord[s.slug], col = STATUS_COLOR[s.status];
     const pct = s.flood ? s.level / s.flood : 0;
     const r = 7 + Math.max(0, Math.min(1.25, pct)) * 7;
-    const dir = LABEL_DIR[s.slug] || (c.x > VBW * 0.7 ? "left" : "right");
+    const dir = LABEL_DIR[s.slug] || (c.x > X0 + VW * 0.7 ? "left" : "right");
     const G = labelGeom(dir, r);
     return html`<g key=${s.slug} class=${`marker st-${s.status}`} transform=${`translate(${c.x.toFixed(1)} ${c.y.toFixed(1)})`}
         onClick=${() => onOpen(s.slug)} role="button" tabindex="0"
@@ -468,18 +461,20 @@ function MapView({ stations, rivers, onOpen }) {
 
       <div class="map-canvas">
         <img class="map-logo" src="https://guerreirosdohumaita.com.br/wp-content/uploads/2024/05/logo-guerreiros-branco-1024x411.png" alt="Guerreiros do Humaitá" loading="lazy"/>
-        <svg viewBox=${`0 0 ${VBW} ${VBH}`} class="map-svg" preserveAspectRatio="xMidYMid meet">
+        <svg viewBox=${`${X0} ${Y0} ${VW} ${VH}`} class="map-svg" preserveAspectRatio="xMidYMid meet">
           <defs>
             <radialGradient id="guaibaGlow" cx="50%" cy="50%" r="50%">
               <stop offset="0%" stop-color="#38bdf8" stop-opacity="0.45"/>
               <stop offset="100%" stop-color="#38bdf8" stop-opacity="0"/>
             </radialGradient>
           </defs>
+          <path class="rs-outline" d=${RS.path}/>
+          <text class="rs-lbl" x=${X0 + 215} y=${Y0 + 432}>RIO GRANDE DO SUL</text>
           ${g ? html`<ellipse cx=${g.x} cy=${g.y} rx="130" ry="78" fill="url(#guaibaGlow)"/>` : null}
-          ${g ? html`<line class="patos-line" x1=${g.x} y1=${g.y + 8} x2=${g.x} y2=${VBH - 74} stroke="#38bdf8"/>` : null}
+          ${g ? html`<line class="patos-line" x1=${g.x} y1=${g.y + 8} x2=${g.x} y2=${Y0 + VH - 92} stroke="#38bdf8"/>` : null}
           ${g ? html`<path class="flow-arrow patos-arrow" d="M-6,-5 L7,0 L-6,5 Z" fill="#38bdf8"
-            transform=${`translate(${g.x} ${VBH - 72}) rotate(90)`}/>` : null}
-          ${g ? html`<text class="water-lbl" x=${g.x} y=${VBH - 50} text-anchor="middle">Delta do Jacuí · Lago Guaíba → Lagoa dos Patos → Oceano Atlântico</text>` : null}
+            transform=${`translate(${g.x} ${Y0 + VH - 90}) rotate(90)`}/>` : null}
+          ${g ? html`<text class="water-lbl" x=${g.x} y=${Y0 + VH - 64} text-anchor="middle">Delta do Jacuí · Lago Guaíba → Lagoa dos Patos → Oceano Atlântico</text>` : null}
           ${riverEls}
           ${markerEls}
         </svg>
