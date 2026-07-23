@@ -337,6 +337,178 @@ function Modal({ st, points, riverColor, onClose }) {
     </div>`;
 }
 
+/* ---------------- mapa da bacia ----------------
+   Mapa esquemático georreferenciado: as estações são projetadas pelas
+   coordenadas reais (lat/lng) e os rios são desenhados ligando as estações
+   na ordem de montante → jusante, com setas indicando o sentido da
+   correnteza. Tudo converge para o Guaíba, em Porto Alegre. */
+const GUAIBA = "portoalegre";
+// Ordem de jusante (o último ponto está mais próximo da foz/Guaíba).
+const FLOWS = [
+  { river: "Rio Jacuí",     order: ["donafrancisca", "cachoeiradosul", "riopardo"] },
+  { river: "Rio Taquari",   order: ["mucum", "encantado", "lajeado", "bomretirodosul"] },
+  { river: "Rio Caí",       order: ["feliz", "saosebastiaodocai"] },
+  { river: "Rio dos Sinos", order: ["taquara", "saoleopoldo"] },
+  { river: "Rio Gravataí",  order: ["gravatai"] },
+];
+
+// Curva suave (Catmull-Rom → Bézier) passando pelos pontos.
+function smoothPath(pts) {
+  if (pts.length < 2) return "";
+  if (pts.length === 2) return `M${pts[0].x},${pts[0].y} L${pts[1].x},${pts[1].y}`;
+  let d = `M${pts[0].x.toFixed(1)},${pts[0].y.toFixed(1)}`;
+  for (let i = 0; i < pts.length - 1; i++) {
+    const p0 = pts[i - 1] || pts[i], p1 = pts[i], p2 = pts[i + 1], p3 = pts[i + 2] || pts[i + 1];
+    const c1x = p1.x + (p2.x - p0.x) / 6, c1y = p1.y + (p2.y - p0.y) / 6;
+    const c2x = p2.x - (p3.x - p1.x) / 6, c2y = p2.y - (p3.y - p1.y) / 6;
+    d += ` C${c1x.toFixed(1)},${c1y.toFixed(1)} ${c2x.toFixed(1)},${c2y.toFixed(1)} ${p2.x.toFixed(1)},${p2.y.toFixed(1)}`;
+  }
+  return d;
+}
+// Uma seta de sentido no meio de cada segmento montante→jusante.
+function segArrows(pts) {
+  const a = [];
+  for (let i = 0; i < pts.length - 1; i++) {
+    const p = pts[i], q = pts[i + 1];
+    const dx = q.x - p.x, dy = q.y - p.y;
+    if (Math.hypot(dx, dy) < 22) continue; // evita seta em segmento curtinho
+    a.push({ x: (p.x + q.x) / 2, y: (p.y + q.y) / 2, ang: (Math.atan2(dy, dx) * 180) / Math.PI });
+  }
+  return a;
+}
+
+function MapView({ stations, rivers, onOpen }) {
+  const layout = useMemo(() => {
+    const pts = stations.filter((s) => s.lat != null && s.lng != null);
+    if (pts.length < 2) return null;
+    const lats = pts.map((s) => s.lat), lngs = pts.map((s) => s.lng);
+    const latMin = Math.min(...lats), latMax = Math.max(...lats);
+    const lngMin = Math.min(...lngs), lngMax = Math.max(...lngs);
+    const meanLat = (latMin + latMax) / 2;
+    const kx = Math.cos((meanLat * Math.PI) / 180) * 111.32, ky = 110.57; // km por grau
+    const VBW = 1000, P = 96, BH = 128;
+    const geoW = (lngMax - lngMin) * kx || 1;
+    const geoH = (latMax - latMin) * ky || 1;
+    const contentW = VBW - 2 * P;
+    const scale = contentW / geoW;
+    const contentH = geoH * scale;
+    const VBH = contentH + 2 * P + BH;
+    const coord = {};
+    for (const s of pts) coord[s.slug] = { x: P + (s.lng - lngMin) * kx * scale, y: P + (latMax - s.lat) * ky * scale };
+    return { VBW, VBH, coord, guaibaY: P + contentH };
+  }, [stations]);
+
+  if (!layout) return html`<div class="map-empty">Carregando mapa…</div>`;
+  const { VBW, VBH, coord } = layout;
+  const g = coord[GUAIBA];
+
+  const riverEls = FLOWS.map((f) => {
+    const nodes = f.order.map((sl) => coord[sl]).filter(Boolean);
+    if (!nodes.length) return null;
+    const full = g && f.order[f.order.length - 1] !== GUAIBA ? [...nodes, g] : nodes;
+    const color = rivers[f.river] || "#38bdf8";
+    return html`<g key=${f.river}>
+      <path class="river-path" d=${smoothPath(full)} stroke=${color}/>
+      ${segArrows(full).map((a, i) => html`<path key=${i} class="flow-arrow" d="M-6,-5 L7,0 L-6,5 Z" fill=${color}
+        transform=${`translate(${a.x.toFixed(1)} ${a.y.toFixed(1)}) rotate(${a.ang.toFixed(1)})`}/>`)}
+    </g>`;
+  });
+
+  const markerEls = stations.filter((s) => coord[s.slug]).map((s) => {
+    const c = coord[s.slug], col = STATUS_COLOR[s.status];
+    const pct = s.flood ? s.level / s.flood : 0;
+    const r = 7 + Math.max(0, Math.min(1.25, pct)) * 7;
+    // Porto Alegre (foz/Guaíba) fica no nó de convergência: rótulo embaixo,
+    // centralizado, para não colidir com Gravataí/São Leopoldo.
+    const below = s.slug === GUAIBA;
+    const flip = !below && c.x > VBW * 0.72; // rótulo à esquerda perto da borda direita
+    const lx = below ? 0 : flip ? -(r + 6) : r + 6;
+    const anchor = below ? "middle" : flip ? "end" : "start";
+    const cityY = below ? r + 15 : -1;
+    const lvlY = below ? r + 29 : 13;
+    return html`<g key=${s.slug} class=${`marker st-${s.status}`} transform=${`translate(${c.x.toFixed(1)} ${c.y.toFixed(1)})`}
+        onClick=${() => onOpen(s.slug)} role="button" tabindex="0"
+        onKeyDown=${(e) => (e.key === "Enter" || e.key === " ") && onOpen(s.slug)}>
+      ${s.status === "inundacao" ? html`<circle class="pulse-ring" r=${r} fill="none" stroke=${col} stroke-width="2">
+        <animate attributeName="r" values=${`${r};${r + 13}`} dur="1.8s" repeatCount="indefinite"/>
+        <animate attributeName="opacity" values="0.75;0" dur="1.8s" repeatCount="indefinite"/></circle>` : null}
+      <circle class="m-halo" r=${r + 5} fill=${col}/>
+      <circle class="m-dot" r=${r} fill=${col}/>
+      <text class="m-city" x=${lx} y=${cityY} text-anchor=${anchor}>${s.city}</text>
+      <text class="m-lvl" x=${lx} y=${lvlY} text-anchor=${anchor} fill=${col}>${fmt(s.level)} m</text>
+    </g>`;
+  });
+
+  return html`
+    <div class="mapwrap">
+      <div class="map-head">
+        <div class="map-title">
+          <h2>🗺️ Mapa da Bacia do Guaíba</h2>
+          <p>Localização das estações, nível atual e o sentido da correnteza — <b>montante → jusante</b>. Toque num ponto para ver os detalhes.</p>
+        </div>
+        <div class="map-legend">
+          ${["inundacao", "alerta", "atencao", "normal"].map((k) => html`
+            <span key=${k} class="lg"><span class="lgdot" style=${{ background: STATUS_COLOR[k] }}></span>${STATUS_LABEL[k]}</span>`)}
+          <span class="lg"><span class="lgarrow">▸</span>sentido do rio</span>
+        </div>
+      </div>
+
+      <div class="map-canvas">
+        <svg viewBox=${`0 0 ${VBW} ${VBH}`} class="map-svg" preserveAspectRatio="xMidYMid meet">
+          <defs>
+            <radialGradient id="guaibaGlow" cx="50%" cy="50%" r="50%">
+              <stop offset="0%" stop-color="#38bdf8" stop-opacity="0.45"/>
+              <stop offset="100%" stop-color="#38bdf8" stop-opacity="0"/>
+            </radialGradient>
+          </defs>
+          ${g ? html`<ellipse cx=${g.x} cy=${g.y} rx="130" ry="78" fill="url(#guaibaGlow)"/>` : null}
+          ${g ? html`<line class="patos-line" x1=${g.x} y1=${g.y + 8} x2=${g.x} y2=${VBH - 74} stroke="#38bdf8"/>` : null}
+          ${g ? html`<path class="flow-arrow patos-arrow" d="M-6,-5 L7,0 L-6,5 Z" fill="#38bdf8"
+            transform=${`translate(${g.x} ${VBH - 72}) rotate(90)`}/>` : null}
+          ${g ? html`<text class="water-lbl" x=${g.x} y=${VBH - 50} text-anchor="middle">Delta do Jacuí · Lago Guaíba → Lagoa dos Patos → Oceano Atlântico</text>` : null}
+          ${riverEls}
+          ${markerEls}
+        </svg>
+      </div>
+
+      <${MapInfo}/>
+    </div>`;
+}
+
+function MapInfo() {
+  return html`
+    <div class="map-info">
+      <h3>Como os rios correm até o Guaíba</h3>
+      <p>
+        A <b>Região Hidrográfica do Guaíba</b> drena boa parte do nordeste do Rio Grande do Sul. O
+        <b>Lago Guaíba</b> nasce em Porto Alegre, no <b>Delta do Jacuí</b>, da confluência de quatro grandes rios.
+        Em volume de água, o <b>Jacuí</b> contribui com ~84,6%, o <b>dos Sinos</b> ~7,5%, o <b>Caí</b> ~5,2% e o
+        <b>Gravataí</b> ~2,7%. Do delta, o Guaíba percorre ~50 km rumo ao sul até a <b>Lagoa dos Patos</b>, que
+        deságua no Oceano Atlântico.
+      </p>
+      <ul class="flow-list">
+        <li><span class="fdot" style=${{ background: "#60a5fa" }}></span>
+          <b>Rio Jacuí</b> — principal rio da bacia. Corre de <b>oeste → leste</b>
+          (Dona Francisca → Cachoeira do Sul → Rio Pardo) e recebe o Taquari-Antas e o Vacacaí antes do delta.</li>
+        <li><span class="fdot" style=${{ background: "#f472b6" }}></span>
+          <b>Rio Taquari-Antas</b> — desce da Serra rumo ao sul
+          (Muçum → Encantado → Lajeado → Bom Retiro do Sul) e deságua no Jacuí.</li>
+        <li><span class="fdot" style=${{ background: "#34d399" }}></span>
+          <b>Rio Caí</b> — da encosta da serra para o sul (Feliz → São Sebastião do Caí), até o Guaíba.</li>
+        <li><span class="fdot" style=${{ background: "#a78bfa" }}></span>
+          <b>Rio dos Sinos</b> — desce a serra rumo ao sul (Taquara → São Leopoldo) e chega ao delta.</li>
+        <li><span class="fdot" style=${{ background: "#fbbf24" }}></span>
+          <b>Rio Gravataí</b> — atravessa a região metropolitana e deságua junto ao Guaíba, em Porto Alegre.</li>
+      </ul>
+      <p class="flow-note">
+        💡 Como tudo converge para o Guaíba, uma cheia na cabeceira (ex.: no Taquari) sobe primeiro nas cidades a
+        montante e só depois chega às cidades a jusante e ao Guaíba — por isso o sentido das setas ajuda a antecipar
+        o que vem pela frente.
+      </p>
+      <p class="src">Fontes: SGB/CPRM (SACE), ANA e nivelguaiba.com.br · Região Hidrográfica do Guaíba.</p>
+    </div>`;
+}
+
 /* ---------------- topbar ---------------- */
 function Topbar({ stations, updatedAt, connected, intervalMin, filter, setFilter }) {
   const counts = useMemo(() => {
@@ -383,6 +555,7 @@ function chip(status, n, label, filter, setFilter) {
 /* ---------------- app ---------------- */
 function App() {
   const { stations, history, meta, updatedAt, connected } = useLiveData();
+  const [view, setView] = useState("painel");
   const [sort, setSort] = useState("risk");
   const [filter, setFilter] = useState("all");
   const [q, setQ] = useState("");
@@ -390,7 +563,7 @@ function App() {
 
   const colorFor = useCallback((riv) => meta.rivers?.[riv] || "#38bdf8", [meta]);
 
-  const view = useMemo(() => {
+  const vlist = useMemo(() => {
     let arr = stations.slice();
     if (filter !== "all") arr = arr.filter((s) => s.status === filter);
     if (q.trim()) {
@@ -419,29 +592,39 @@ function App() {
         intervalMin=${meta.intervalMin} filter=${filter} setFilter=${setFilter}/>
 
       <div class="controls">
-        <div class="seg">
-          ${segBtn(sort, setSort, "risk", "Risco")}
-          ${segBtn(sort, setSort, "level", "Nível")}
-          ${segBtn(sort, setSort, "rate", "Subindo")}
-          ${segBtn(sort, setSort, "name", "A–Z")}
+        <div class="seg viewseg">
+          ${segBtn(view, setView, "painel", "▦ Painel")}
+          ${segBtn(view, setView, "mapa", "🗺️ Mapa")}
         </div>
-        <div class="seg">
-          ${segBtn(filter, setFilter, "all", "Todos")}
-          ${segBtn(filter, setFilter, "inundacao", "Inundação")}
-          ${segBtn(filter, setFilter, "alerta", "Alerta")}
-          ${segBtn(filter, setFilter, "atencao", "Atenção")}
-          ${segBtn(filter, setFilter, "normal", "Normal")}
-        </div>
-        <input class="search" placeholder="🔎 buscar cidade ou rio…" value=${q} onInput=${(e) => setQ(e.target.value)}/>
+        ${view === "painel" ? html`
+          <div class="seg">
+            ${segBtn(sort, setSort, "risk", "Risco")}
+            ${segBtn(sort, setSort, "level", "Nível")}
+            ${segBtn(sort, setSort, "rate", "Subindo")}
+            ${segBtn(sort, setSort, "name", "A–Z")}
+          </div>
+          <div class="seg">
+            ${segBtn(filter, setFilter, "all", "Todos")}
+            ${segBtn(filter, setFilter, "inundacao", "Inundação")}
+            ${segBtn(filter, setFilter, "alerta", "Alerta")}
+            ${segBtn(filter, setFilter, "atencao", "Atenção")}
+            ${segBtn(filter, setFilter, "normal", "Normal")}
+          </div>
+          <input class="search" placeholder="🔎 buscar cidade ou rio…" value=${q} onInput=${(e) => setQ(e.target.value)}/>
+        ` : null}
       </div>
 
-      <div class="grid">
-        ${view.map((st, i) => html`
-          <${StationCard} key=${st.slug} st=${st} index=${i}
-            points=${history[st.slug]} riverColor=${colorFor(st.river)} onOpen=${(s) => setOpen(s.slug)}/>
-        `)}
-      </div>
-      ${view.length === 0 ? html`<div class="empty">Nenhuma estação para este filtro.</div>` : null}
+      ${view === "mapa"
+        ? html`<${MapView} stations=${stations} rivers=${meta.rivers || {}} onOpen=${(sl) => setOpen(sl)}/>`
+        : html`
+          <div class="grid">
+            ${vlist.map((st, i) => html`
+              <${StationCard} key=${st.slug} st=${st} index=${i}
+                points=${history[st.slug]} riverColor=${colorFor(st.river)} onOpen=${(s) => setOpen(s.slug)}/>
+            `)}
+          </div>
+          ${vlist.length === 0 ? html`<div class="empty">Nenhuma estação para este filtro.</div>` : null}
+        `}
 
       <div class="footer">
         Dados coletados automaticamente de <a href="https://nivelguaiba.com.br" target="_blank" rel="noopener">nivelguaiba.com.br</a>

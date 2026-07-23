@@ -3,13 +3,82 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>RS River · Bacia do Guaíba — Guerreiros do Humaitá</title>
-  <meta name="description" content="Monitoramento em tempo real do nível dos rios da Bacia do Guaíba (RS). Um projeto Guerreiros do Humaitá." />
-  <meta property="og:title" content="RS River · Monitoramento dos Rios da Bacia do Guaíba" />
-  <meta property="og:description" content="Nível dos rios em tempo real — um projeto Guerreiros do Humaitá." />
+
+  <!-- ===================== SEO ===================== -->
+  <title>Nível dos Rios do Rio Grande do Sul em Tempo Real | Guaíba, Sinos, Caí, Taquari e Jacuí — Guerreiros do Humaitá</title>
+  <meta name="description" content="Nível dos rios do Rio Grande do Sul em tempo real: nível do Guaíba, do Rio dos Sinos, Caí, Taquari, Jacuí e Gravataí. Cota de inundação, tendência de subida e alertas de cheia por cidade na Bacia do Guaíba. Um projeto Guerreiros do Humaitá." />
+  <meta name="keywords" content="nível do Guaíba, nível dos rios Rio Grande do Sul, nível do rio Guaíba hoje, nível do Rio dos Sinos, nível do Rio Caí, nível do Rio Taquari, nível do Rio Jacuí, nível do Rio Gravataí, cheia Porto Alegre, cota de inundação, enchente RS, monitoramento de rios RS, Defesa Civil, Bacia do Guaíba, Guerreiros do Humaitá" />
+  <meta name="author" content="Guerreiros do Humaitá" />
+  <meta name="robots" content="index, follow, max-image-preview:large" />
+  <meta name="language" content="Portuguese" />
+  <meta name="theme-color" content="#0a0e17" />
+  <link rel="canonical" href="https://rsriver.com.br/" />
+
+  <!-- Geo -->
+  <meta name="geo.region" content="BR-RS" />
+  <meta name="geo.placename" content="Porto Alegre, Rio Grande do Sul, Brasil" />
+  <meta name="geo.position" content="-30.0346;-51.2177" />
+  <meta name="ICBM" content="-30.0346, -51.2177" />
+
+  <!-- Open Graph -->
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="RS River · Nível dos Rios do RS" />
+  <meta property="og:locale" content="pt_BR" />
+  <meta property="og:title" content="Nível dos Rios do RS em Tempo Real — Guaíba, Sinos, Caí, Taquari e Jacuí" />
+  <meta property="og:description" content="Monitoramento em tempo real do nível dos rios da Bacia do Guaíba (RS), com cota de inundação e alertas de cheia por cidade. Um projeto Guerreiros do Humaitá." />
   <meta property="og:image" content="https://guerreirosdohumaita.com.br/wp-content/uploads/2024/05/icon-guerreiros-preto.png" />
+  <meta property="og:url" content="https://rsriver.com.br/" />
+
+  <!-- Twitter -->
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Nível dos Rios do RS em Tempo Real — Bacia do Guaíba" />
+  <meta name="twitter:description" content="Nível do Guaíba, Sinos, Caí, Taquari, Jacuí e Gravataí em tempo real, com alertas de cheia por cidade. Um projeto Guerreiros do Humaitá." />
+  <meta name="twitter:image" content="https://guerreirosdohumaita.com.br/wp-content/uploads/2024/05/icon-guerreiros-preto.png" />
+
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%8C%8A%3C/text%3E%3C/svg%3E" />
   <link rel="stylesheet" href="./styles.css" />
+
+  <!-- Dados estruturados (Schema.org) para busca do Google -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "NGO",
+        "@id": "https://guerreirosdohumaita.com.br/#org",
+        "name": "Guerreiros do Humaitá",
+        "alternateName": "Associação Guerreiros do Humaitá",
+        "url": "https://guerreirosdohumaita.com.br",
+        "logo": "https://guerreirosdohumaita.com.br/wp-content/uploads/2024/05/icon-guerreiros-preto.png",
+        "slogan": "O Povo pelo Povo!",
+        "areaServed": { "@type": "State", "name": "Rio Grande do Sul" },
+        "description": "Entidade sem fins lucrativos nascida do apoio às vítimas das enchentes no Rio Grande do Sul."
+      },
+      {
+        "@type": "WebSite",
+        "@id": "https://rsriver.com.br/#website",
+        "name": "RS River — Nível dos Rios do Rio Grande do Sul",
+        "url": "https://rsriver.com.br/",
+        "inLanguage": "pt-BR",
+        "publisher": { "@id": "https://guerreirosdohumaita.com.br/#org" },
+        "about": "Monitoramento em tempo real do nível dos rios da Bacia do Guaíba: Guaíba, dos Sinos, Caí, Taquari, Jacuí e Gravataí.",
+        "keywords": "nível do Guaíba, nível dos rios Rio Grande do Sul, cota de inundação, cheia, Bacia do Guaíba"
+      },
+      {
+        "@type": "WebApplication",
+        "name": "RS River — Painel do Nível dos Rios",
+        "applicationCategory": "Monitoring",
+        "operatingSystem": "Web",
+        "url": "https://rsriver.com.br/",
+        "inLanguage": "pt-BR",
+        "isAccessibleForFree": true,
+        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "BRL" },
+        "creator": { "@id": "https://guerreirosdohumaita.com.br/#org" }
+      }
+    ]
+  }
+  </script>
+
   <!-- React sem bundler: carregado como ESM. Requer internet (o app já
        depende de internet para o crawler). -->
   <script type="importmap">
@@ -22,15 +91,50 @@
     }
   }
   </script>
+
+  <!-- Canonical/og:url autocorrigem para a URL real de deploy. -->
+  <script>
+    (function () {
+      try {
+        var origin = location.origin + "/";
+        var c = document.querySelector('link[rel="canonical"]');
+        if (c) c.href = origin;
+        var og = document.querySelector('meta[property="og:url"]');
+        if (og) og.setAttribute("content", origin);
+      } catch (e) {}
+    })();
+  </script>
 </head>
 <body>
   <div id="root">
     <div class="boot">
       <div class="boot-wave">🌊</div>
-      <p>Carregando painel dos rios…</p>
+      <!-- Conteúdo inicial com valor de SEO (substituído pelo app ao carregar). -->
+      <h1>Nível dos Rios do Rio Grande do Sul em Tempo Real</h1>
+      <p>Carregando painel dos rios da Bacia do Guaíba — Guaíba, dos Sinos, Caí, Taquari, Jacuí e Gravataí…</p>
     </div>
   </div>
-  <noscript>Este painel precisa de JavaScript habilitado.</noscript>
+
+  <noscript>
+    <section style="max-width:760px;margin:40px auto;padding:0 20px;line-height:1.7">
+      <h1>Nível dos Rios do Rio Grande do Sul em Tempo Real</h1>
+      <p>
+        O <strong>RS River</strong> é um painel de monitoramento em tempo real do <strong>nível dos rios da
+        Bacia do Guaíba</strong>, no Rio Grande do Sul. Acompanhe o <strong>nível do Guaíba</strong> em Porto
+        Alegre e o nível do <strong>Rio dos Sinos</strong> (São Leopoldo, Taquara), <strong>Rio Caí</strong>
+        (Feliz, São Sebastião do Caí), <strong>Rio Taquari</strong> (Lajeado, Muçum, Encantado, Bom Retiro do Sul),
+        <strong>Rio Jacuí</strong> (Cachoeira do Sul, Dona Francisca, Rio Pardo) e <strong>Rio Gravataí</strong>.
+      </p>
+      <p>
+        Para cada cidade mostramos o nível atual, a cota de inundação, a tendência de subida (cm/h) e a margem
+        para transbordo, com dados das redes telemétricas oficiais da <strong>ANA</strong> e do
+        <strong>SGB/CPRM</strong>. Este painel é um projeto da associação
+        <a href="https://guerreirosdohumaita.com.br">Guerreiros do Humaitá</a> — <em>O Povo pelo Povo!</em>
+      </p>
+      <p>Este painel precisa de JavaScript habilitado para exibir os dados ao vivo.</p>
+    </section>
+  </noscript>
+
   <script type="module" src="./app.js"></script>
   <script type="module">
     // Tela de erro clara caso o CDN do React não carregue.
