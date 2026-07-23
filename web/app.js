@@ -18,6 +18,13 @@ const STATUS_DESC = {
 const STATUS_ORDER = { inundacao: 0, alerta: 1, atencao: 2, normal: 3 };
 
 const fmt = (n, d = 2) => (n == null || Number.isNaN(n) ? "—" : Number(n).toFixed(d));
+// Tendência do nível: subindo / descendo / estável.
+const trendOf = (rate) => {
+  const r = rate || 0;
+  if (r > 0.2) return { cls: "up", icon: "▲", color: "#fb7185", word: "subindo" };
+  if (r < -0.2) return { cls: "down", icon: "▼", color: "#38bdf8", word: "descendo" };
+  return { cls: "flat", icon: "▬", color: "#8ea3c6", word: "estável" };
+};
 const fmtDate = (iso) => {
   if (!iso) return "";
   const dt = new Date(iso);
@@ -549,10 +556,11 @@ function MapView({ stations, rivers, onOpen }) {
     const r = (4 + Math.max(0, Math.min(1.25, pct)) * 2.5) * sc;
     const dir = LABEL_DIR[s.slug] || (c.x > X0 + VW * 0.7 ? "left" : "right");
     const G = labelGeom(dir, r);
+    const tr = trendOf(s.rate);
     return html`<g key=${s.slug} class=${`marker st-${s.status}`} transform=${`translate(${c.x.toFixed(1)} ${c.y.toFixed(1)})`}
         onClick=${() => onOpen(s.slug)} role="button" tabindex="0"
         onKeyDown=${(e) => (e.key === "Enter" || e.key === " ") && onOpen(s.slug)}>
-      <title>${s.city} · ${fmt(s.level)} m (cota ${fmt(s.flood)} m)</title>
+      <title>${s.city} · ${fmt(s.level)} m (cota ${fmt(s.flood)} m) · ${tr.word} ${fmt(Math.abs(s.rate || 0), 1)} cm/h</title>
       ${s.status === "inundacao" ? html`<circle class="pulse-ring" r=${r} fill="none" stroke=${col} stroke-width=${2 * sc}>
         <animate attributeName="r" values=${`${r};${r + 11 * sc}`} dur="1.8s" repeatCount="indefinite"/>
         <animate attributeName="opacity" values="0.75;0" dur="1.8s" repeatCount="indefinite"/></circle>` : null}
@@ -561,7 +569,7 @@ function MapView({ stations, rivers, onOpen }) {
       ${detail ? html`
         <text class="m-city" x=${G.lx} y=${G.cityY} text-anchor=${G.anchor}>${s.city}</text>
         <text class="m-lvl" x=${G.lx} y=${G.lvlY} text-anchor=${G.anchor}>
-          <tspan fill=${col}>${fmt(s.level)} m</tspan>${s.flood != null ? html`<tspan class="m-cota"> · cota ${fmt(s.flood)} m</tspan>` : null}
+          <tspan fill=${tr.color}>${tr.icon} </tspan><tspan fill=${col}>${fmt(s.level)} m</tspan>${s.flood != null ? html`<tspan class="m-cota"> · cota ${fmt(s.flood)} m</tspan>` : null}
         </text>` : null}
     </g>`;
   });
@@ -582,6 +590,7 @@ function MapView({ stations, rivers, onOpen }) {
             ${["inundacao", "alerta", "atencao", "normal"].map((k) => html`
               <span key=${k} class="lg"><span class="lgdot" style=${{ background: STATUS_COLOR[k] }}></span>${STATUS_LABEL[k]}</span>`)}
             <span class="lg"><span class="lgarrow">▸</span>sentido do rio</span>
+            <span class="lg"><span style=${{ color: "#fb7185" }}>▲</span><span style=${{ color: "#38bdf8" }}>▼</span>nível subindo/descendo</span>
           </div>
         </div>
       </div>

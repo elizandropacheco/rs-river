@@ -220,7 +220,9 @@ export async function crawlStation(station) {
     level: lvl,
     flood,
     status: statusFor(lvl, flood),
-    rate: pick(rate, prev.rate, seed.rate, 0),
+    // sanitiza também os fallbacks: um valor absurdo já gravado num ciclo
+    // anterior não pode "grudar" no snapshot para sempre
+    rate: pick(rate, saneRate(prev.rate), saneRate(seed.rate), 0),
     record: prev.record || seed.record || null,
     rain: {
       today: pick(rain?.today, prev.rain?.today, seed.rain?.today, 0),
@@ -236,6 +238,11 @@ export async function crawlStation(station) {
 
   store.record(station.slug, snapshot);
   return snapshot;
+}
+
+// Tendência plausível? (nem a cheia mais violenta faz metros por hora)
+function saneRate(v) {
+  return typeof v === "number" && Number.isFinite(v) && Math.abs(v) <= 200 ? v : null;
 }
 
 function pick(...vals) {

@@ -20,12 +20,20 @@ let db = { snapshots: {}, history: {} };
 // séries acabam intercaladas no gráfico.
 export const canonT = (t) => String(t).replace(/T(\d{2}:\d{2}):\d{2}$/, "T$1");
 
+// Só aceitamos o horário local da fonte, "YYYY-MM-DDTHH:MM". Versões antigas
+// gravavam o ts do snapshot (ISO completo, em UTC: "...T21:05:12.814Z"); mesclado
+// com a série local isso dava 3 h de defasagem e tendências absurdas. Esses
+// pontos são redundantes (a série oficial cobre o mesmo período) — descartamos.
+export const isCanonT = (t) => /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(t);
+
 // Normaliza + deduplica uma série (mantém o último valor de cada timestamp).
 function normalizeSeries(list) {
   const byT = new Map();
   for (const p of list || []) {
     if (!p || p.v == null || !p.t) continue;
-    byT.set(canonT(p.t), p.v);
+    const t = canonT(p.t);
+    if (!isCanonT(t)) continue; // descarta legado
+    byT.set(t, p.v);
   }
   return [...byT.entries()]
     .map(([t, v]) => ({ t, v }))
@@ -93,6 +101,7 @@ export function mergeSeries(slug, points) {
   for (const p of points) {
     if (!p || p.v == null || !p.t) continue;
     const t = canonT(p.t);
+    if (!isCanonT(t)) continue;
     const i = idx.get(t);
     if (i == null) { hist.push({ t, v: p.v }); idx.set(t, hist.length - 1); }
     else hist[i].v = p.v;
