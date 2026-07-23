@@ -121,7 +121,11 @@ function computeRate(points) {
   }
   const hours = (lastMs - Date.parse(ref.t)) / 3.6e6;
   if (!(hours > 0)) return null;
-  return +(((last.v - ref.v) * 100) / hours).toFixed(1);
+  const rate = ((last.v - ref.v) * 100) / hours;
+  // Sanidade: nem a cheia mais violenta sobe/desce metros por hora. Valor
+  // absurdo = artefato de dado; melhor não exibir do que exibir errado.
+  if (!Number.isFinite(rate) || Math.abs(rate) > 200) return null;
+  return +rate.toFixed(1);
 }
 
 // weather.json -> chuva de hoje, previsão de hoje e acumulado da semana.

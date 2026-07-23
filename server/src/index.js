@@ -30,7 +30,9 @@ function ensureSeed() {
     if (!s) continue;
     const level = s.level, flood = st.flood, r = level / flood;
     const status = r >= 1 ? "inundacao" : r >= 0.9 ? "alerta" : r >= 0.75 ? "atencao" : "normal";
-    store.seedHistory(st.slug, s.history.map(([t, v]) => ({ t: `${today}T${t}`, v })));
+    // NÃO semeia histórico: o crawler traz ~30 dias reais logo no 1º ciclo.
+    // Semear com os horários do seed criava pontos fantasmas no fim da série
+    // (horários que ainda não têm leitura real), distorcendo gráfico e tendência.
     store.record(st.slug, {
       slug: st.slug, city: st.city, river: st.river, lat: st.lat, lng: st.lng,
       level, flood, status, rate: s.rate, record: s.record, rain: s.rain,

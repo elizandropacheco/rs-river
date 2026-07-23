@@ -103,8 +103,4 @@ export function mergeSeries(slug, points) {
 }
 
 // Semeia o histórico com os pontos recentes vindos do site (uma vez).
-export function seedHistory(slug, points) {
-  const hist = (db.history[slug] ||= []);
-  if (hist.length > 0) return;
-  for (const p of points) hist.push({ t: canonT(p.t), v: p.v });
-}
+// (o histórico vem todo do crawler via mergeSeries — não semeamos mais)
