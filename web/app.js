@@ -352,6 +352,23 @@ const FLOWS = [
   { river: "Rio Gravataí",  order: ["gravatai"] },
 ];
 
+// Direção do rótulo por estação (posições são fixas), escolhida à mão para
+// evitar sobreposição nos aglomerados. Fallback: lado com mais espaço.
+const LABEL_DIR = {
+  mucum: "right", encantado: "left", lajeado: "right", bomretirodosul: "right",
+  donafrancisca: "right", cachoeiradosul: "bottom", riopardo: "top",
+  feliz: "right", saosebastiaodocai: "right", saoleopoldo: "left",
+  gravatai: "right", taquara: "bottom", portoalegre: "bottom",
+};
+function labelGeom(dir, r) {
+  switch (dir) {
+    case "left":   return { lx: -(r + 7), anchor: "end",    cityY: -3, lvlY: 11 };
+    case "top":    return { lx: 0, anchor: "middle", cityY: -(r + 16), lvlY: -(r + 3) };
+    case "bottom": return { lx: 0, anchor: "middle", cityY: r + 16, lvlY: r + 30 };
+    default:       return { lx: r + 7, anchor: "start", cityY: -3, lvlY: 11 };
+  }
+}
+
 // Curva suave (Catmull-Rom → Bézier) passando pelos pontos.
 function smoothPath(pts) {
   if (pts.length < 2) return "";
@@ -418,14 +435,8 @@ function MapView({ stations, rivers, onOpen }) {
     const c = coord[s.slug], col = STATUS_COLOR[s.status];
     const pct = s.flood ? s.level / s.flood : 0;
     const r = 7 + Math.max(0, Math.min(1.25, pct)) * 7;
-    // Porto Alegre (foz/Guaíba) fica no nó de convergência: rótulo embaixo,
-    // centralizado, para não colidir com Gravataí/São Leopoldo.
-    const below = s.slug === GUAIBA;
-    const flip = !below && c.x > VBW * 0.72; // rótulo à esquerda perto da borda direita
-    const lx = below ? 0 : flip ? -(r + 6) : r + 6;
-    const anchor = below ? "middle" : flip ? "end" : "start";
-    const cityY = below ? r + 15 : -1;
-    const lvlY = below ? r + 29 : 13;
+    const dir = LABEL_DIR[s.slug] || (c.x > VBW * 0.7 ? "left" : "right");
+    const G = labelGeom(dir, r);
     return html`<g key=${s.slug} class=${`marker st-${s.status}`} transform=${`translate(${c.x.toFixed(1)} ${c.y.toFixed(1)})`}
         onClick=${() => onOpen(s.slug)} role="button" tabindex="0"
         onKeyDown=${(e) => (e.key === "Enter" || e.key === " ") && onOpen(s.slug)}>
@@ -434,8 +445,10 @@ function MapView({ stations, rivers, onOpen }) {
         <animate attributeName="opacity" values="0.75;0" dur="1.8s" repeatCount="indefinite"/></circle>` : null}
       <circle class="m-halo" r=${r + 5} fill=${col}/>
       <circle class="m-dot" r=${r} fill=${col}/>
-      <text class="m-city" x=${lx} y=${cityY} text-anchor=${anchor}>${s.city}</text>
-      <text class="m-lvl" x=${lx} y=${lvlY} text-anchor=${anchor} fill=${col}>${fmt(s.level)} m</text>
+      <text class="m-city" x=${G.lx} y=${G.cityY} text-anchor=${G.anchor}>${s.city}</text>
+      <text class="m-lvl" x=${G.lx} y=${G.lvlY} text-anchor=${G.anchor}>
+        <tspan fill=${col}>${fmt(s.level)} m</tspan>${s.flood != null ? html`<tspan class="m-cota"> · cota ${fmt(s.flood)} m</tspan>` : null}
+      </text>
     </g>`;
   });
 
@@ -454,6 +467,7 @@ function MapView({ stations, rivers, onOpen }) {
       </div>
 
       <div class="map-canvas">
+        <img class="map-logo" src="https://guerreirosdohumaita.com.br/wp-content/uploads/2024/05/logo-guerreiros-branco-1024x411.png" alt="Guerreiros do Humaitá" loading="lazy"/>
         <svg viewBox=${`0 0 ${VBW} ${VBH}`} class="map-svg" preserveAspectRatio="xMidYMid meet">
           <defs>
             <radialGradient id="guaibaGlow" cx="50%" cy="50%" r="50%">
