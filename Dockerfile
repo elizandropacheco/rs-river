@@ -20,7 +20,9 @@ ENV NODE_ENV=production \
 RUN mkdir -p /app/data
 
 EXPOSE 8080
-VOLUME ["/app/data"]
+
+# Persistência: no Railway use Railway Volumes montado em /app/data.
+# No docker-compose local o volume é definido no próprio compose.
 
 # Healthcheck simples batendo na API
 HEALTHCHECK --interval=30s --timeout=4s --start-period=5s --retries=3 \
