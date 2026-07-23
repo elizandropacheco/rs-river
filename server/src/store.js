@@ -15,6 +15,23 @@ const MAX_POINTS = 9000;
 
 let db = { snapshots: {}, history: {} };
 
+// Timestamp canônico "YYYY-MM-DDTHH:MM" (sem segundos). Sem isso o mesmo
+// instante gravado como ...T08:30 e ...T08:30:00 vira DOIS pontos, e as duas
+// séries acabam intercaladas no gráfico.
+export const canonT = (t) => String(t).replace(/T(\d{2}:\d{2}):\d{2}$/, "T$1");
+
+// Normaliza + deduplica uma série (mantém o último valor de cada timestamp).
+function normalizeSeries(list) {
+  const byT = new Map();
+  for (const p of list || []) {
+    if (!p || p.v == null || !p.t) continue;
+    byT.set(canonT(p.t), p.v);
+  }
+  return [...byT.entries()]
+    .map(([t, v]) => ({ t, v }))
+    .sort((a, b) => (a.t < b.t ? -1 : a.t > b.t ? 1 : 0));
+}
+
 export function load() {
   try {
     fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -22,6 +39,10 @@ export function load() {
       db = JSON.parse(fs.readFileSync(FILE, "utf8"));
       db.snapshots ||= {};
       db.history ||= {};
+      // migra históricos antigos (timestamps com segundos / duplicados)
+      for (const slug of Object.keys(db.history)) {
+        db.history[slug] = normalizeSeries(db.history[slug]);
+      }
     }
   } catch (e) {
     console.error("[store] falha ao carregar:", e.message);
@@ -71,8 +92,9 @@ export function mergeSeries(slug, points) {
   const idx = new Map(hist.map((p, i) => [p.t, i]));
   for (const p of points) {
     if (!p || p.v == null || !p.t) continue;
-    const i = idx.get(p.t);
-    if (i == null) { hist.push({ t: p.t, v: p.v }); idx.set(p.t, hist.length - 1); }
+    const t = canonT(p.t);
+    const i = idx.get(t);
+    if (i == null) { hist.push({ t, v: p.v }); idx.set(t, hist.length - 1); }
     else hist[i].v = p.v;
   }
   hist.sort((a, b) => (a.t < b.t ? -1 : a.t > b.t ? 1 : 0));
@@ -84,5 +106,5 @@ export function mergeSeries(slug, points) {
 export function seedHistory(slug, points) {
   const hist = (db.history[slug] ||= []);
   if (hist.length > 0) return;
-  for (const p of points) hist.push(p);
+  for (const p of points) hist.push({ t: canonT(p.t), v: p.v });
 }

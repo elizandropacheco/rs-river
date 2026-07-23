@@ -38,6 +38,23 @@ const relTime = (iso) => {
   return `há ${Math.floor(s / 86400)} d`;
 };
 
+/* Recorta a série nos últimos N dias (null = tudo). Se a janela ficar vazia
+   (estação sem leitura recente), cai para os últimos pontos disponíveis. */
+const PERIODS = [
+  { d: 1, label: "24 h" }, { d: 2, label: "2 dias" }, { d: 7, label: "7 dias" },
+  { d: 30, label: "30 dias" }, { d: null, label: "Tudo" },
+];
+function sliceDays(points, days) {
+  const arr = (points || []).filter((p) => p && p.v != null);
+  if (!days || !arr.length) return arr;
+  const cutoff = Date.now() - days * 864e5;
+  const out = arr.filter((p) => {
+    const t = Date.parse(p.t);
+    return Number.isNaN(t) ? true : t >= cutoff;
+  });
+  return out.length >= 2 ? out : arr.slice(-Math.min(arr.length, 96));
+}
+
 /* número que "conta" ao mudar */
 function useCountUp(target, dur = 700) {
   const [val, setVal] = useState(target || 0);
@@ -197,9 +214,9 @@ function StationCard({ st, points, riverColor, onOpen, index }) {
       </div>
 
       <div class="spark">
-        <span class="lbl">Nível · últimas ${(points || []).length || "—"} leituras</span>
+        <span class="lbl">Nível · últimas 48 h</span>
         <div class="spark-box">
-          <${AreaChart} points=${points} color=${stColor} flood=${st.flood}/>
+          <${AreaChart} points=${sliceDays(points, 2)} color=${stColor} flood=${st.flood}/>
         </div>
       </div>
 
@@ -236,8 +253,9 @@ function Modal({ st, points, riverColor, onClose }) {
     return () => { window.removeEventListener("keydown", h); document.body.style.overflow = ""; };
   }, [onClose]);
 
+  const [period, setPeriod] = useState(2); // padrão: últimos 2 dias
   const stColor = STATUS_COLOR[st.status];
-  const data = (points || []).filter((p) => p && p.v != null);
+  const data = useMemo(() => sliceDays(points, period), [points, period]);
   const vals = data.map((p) => p.v);
   const minV = vals.length ? Math.min(...vals) : null;
   const maxV = vals.length ? Math.max(...vals) : null;
@@ -298,6 +316,10 @@ function Modal({ st, points, riverColor, onClose }) {
               <span class="lg-item"><span class="lg-dash"></span>cota de inundação</span>
             </span>
           </div>
+          <div class="bc-periods">
+            ${PERIODS.map((p) => html`
+              <button key=${p.label} class=${period === p.d ? "on" : ""} onClick=${() => setPeriod(p.d)}>${p.label}</button>`)}
+          </div>
           <div class="modal-chart">
             <${AreaChart} points=${data} color=${stColor} flood=${st.flood} axis=${true}/>
           </div>
@@ -356,7 +378,7 @@ const FLOWS = [
 // Direção do rótulo por estação (posições são fixas), escolhida à mão para
 // evitar sobreposição nos aglomerados. Fallback: lado com mais espaço.
 const LABEL_DIR = {
-  mucum: "right", encantado: "left", rocasales: "bottom", lajeado: "left", bomretirodosul: "left",
+  mucum: "top", encantado: "left", rocasales: "bottom", lajeado: "left", bomretirodosul: "left",
   donafrancisca: "right", cachoeiradosul: "bottom", riopardo: "top",
   feliz: "right", saosebastiaodocai: "right", saoleopoldo: "left",
   gravatai: "right", taquara: "bottom", portoalegre: "bottom",
@@ -403,7 +425,7 @@ function bezAt(s, t) {
 
 // Janelas de zoom sobre o mapa do RS.
 const ZOOMS = {
-  bacia: { X0: 1045, Y0: 590, VW: 900, VH: 482 },
+  bacia: { X0: 1050, Y0: 545, VW: 870, VH: 515 },
   rs: { X0: -40, Y0: -40, VW: RS.W + 80, VH: RS.H + 80 },
 };
 
@@ -448,7 +470,9 @@ function MapView({ stations, rivers, onOpen }) {
   const markerEls = stations.filter((s) => coord[s.slug]).map((s) => {
     const c = coord[s.slug], col = STATUS_COLOR[s.status];
     const pct = s.flood ? s.level / s.flood : 0;
-    const r = (5.5 + Math.max(0, Math.min(1.25, pct)) * 5) * sc;
+    // Faixa de tamanho enxuta: ainda indica a ocupação da cota, mas sem os
+    // pinos grandes "embolando" onde as cidades são vizinhas (ex.: Encantado/Roca Sales).
+    const r = (4 + Math.max(0, Math.min(1.25, pct)) * 2.5) * sc;
     const dir = LABEL_DIR[s.slug] || (c.x > X0 + VW * 0.7 ? "left" : "right");
     const G = labelGeom(dir, r);
     return html`<g key=${s.slug} class=${`marker st-${s.status}`} transform=${`translate(${c.x.toFixed(1)} ${c.y.toFixed(1)})`}
@@ -458,7 +482,7 @@ function MapView({ stations, rivers, onOpen }) {
       ${s.status === "inundacao" ? html`<circle class="pulse-ring" r=${r} fill="none" stroke=${col} stroke-width=${2 * sc}>
         <animate attributeName="r" values=${`${r};${r + 11 * sc}`} dur="1.8s" repeatCount="indefinite"/>
         <animate attributeName="opacity" values="0.75;0" dur="1.8s" repeatCount="indefinite"/></circle>` : null}
-      <circle class="m-halo" r=${r + 4 * sc} fill=${col}/>
+      <circle class="m-halo" r=${r + 3 * sc} fill=${col}/>
       <circle class="m-dot" r=${r} fill=${col} stroke-width=${2.5 * sc}/>
       ${detail ? html`
         <text class="m-city" x=${G.lx} y=${G.cityY} text-anchor=${G.anchor}>${s.city}</text>
@@ -498,7 +522,7 @@ function MapView({ stations, rivers, onOpen }) {
             </radialGradient>
           </defs>
           <path class="rs-outline" d=${RS.path}/>
-          ${detail ? html`<text class="rs-lbl" x=${X0 + 150} y=${Y0 + 386}>RIO GRANDE DO SUL</text>` : null}
+          ${detail ? html`<text class="rs-lbl" x=${X0 + 120} y=${Y0 + 395}>RIO GRANDE DO SUL</text>` : null}
           ${g ? html`<ellipse cx=${g.x} cy=${g.y} rx=${130 * sc} ry=${78 * sc} fill="url(#guaibaGlow)"/>` : null}
           ${g && detail ? html`
             <line class="patos-line" x1=${g.x} y1=${g.y + 8} x2=${g.x} y2=${Y0 + VH - 92} stroke="#38bdf8"/>

@@ -78,6 +78,24 @@ function despike(pts) {
   return out.length ? out : pts;
 }
 
+// Remove leituras que destoam dos vizinhos imediatos. A fonte mistura duas
+// telemetrias com réguas diferentes — a leitura da hora cheia (HH:00) costuma
+// vir deslocada para baixo — o que desenhava um "pente" no gráfico. Quando só
+// existe a série horária (sem vizinhos de 15 min), nada é descartado.
+function dropOutliers(pts) {
+  if (pts.length < 3) return pts;
+  const out = [pts[0]];
+  for (let i = 1; i < pts.length - 1; i++) {
+    const a = pts[i - 1].v, b = pts[i].v, c = pts[i + 1].v;
+    const interp = (a + c) / 2;
+    const tol = Math.max(0.08, Math.abs(c - a) * 1.5 + 0.05); // tolera tendência real
+    if (Math.abs(b - interp) > tol) continue;
+    out.push(pts[i]);
+  }
+  out.push(pts[pts.length - 1]);
+  return out;
+}
+
 // Objeto {timestamp: nível} -> [{t, v}] ordenado, ignorando leituras inválidas.
 function seriesToPoints(obj) {
   if (!obj || typeof obj !== "object") return [];
@@ -87,7 +105,7 @@ function seriesToPoints(obj) {
     if (val != null && val > 0 && val < 100) pts.push({ t: normTs(k), v: val });
   }
   pts.sort((a, b) => (a.t < b.t ? -1 : a.t > b.t ? 1 : 0));
-  return despike(pts);
+  return dropOutliers(despike(pts));
 }
 
 // Tendência em cm/h a partir da série (usa uma janela de ~1h para suavizar).
