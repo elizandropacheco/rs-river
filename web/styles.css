@@ -2,6 +2,7 @@
   --bg:#0a0e17; --bg2:#0d1420; --panel:rgba(20,28,44,.72); --panel-solid:#131b2b;
   --border:rgba(120,150,200,.14); --border-strong:rgba(130,170,230,.28);
   --txt:#e8eefc; --muted:#8ea3c6; --dim:#5b6884;
+  /* semáforo de alertas: verde → amarelo → laranja → vermelho */
   --normal:#22c55e; --atencao:#eab308; --alerta:#f97316; --inundacao:#ef4444;
   --accent:#38bdf8; --accent2:#818cf8;
   --shadow:0 10px 40px -12px rgba(0,0,0,.7);
@@ -52,25 +53,39 @@ body::before{ /* leve textura de ruído/vinheta */
   transition:transform .25s}
 .brand .gh-logo:hover{transform:translateY(-2px) rotate(-3deg)}
 .brand .gh-logo img{width:38px;height:38px;object-fit:contain}
-.brand .logo{font-size:34px;filter:drop-shadow(0 4px 10px rgba(56,189,248,.5));animation:bob 4s ease-in-out infinite}
 .brand h1{font-size:19px;font-weight:800;letter-spacing:.2px;line-height:1.15}
 .brand p{font-size:12px;color:var(--muted);margin-top:2px}
 .brand b{color:var(--accent)}
 
 .spacer{flex:1}
-.summary{display:flex;gap:10px;flex-wrap:wrap}
+
+/* chips do topo = resumo por status + filtro rápido (semáforo) */
+.summary{display:flex;gap:9px;flex-wrap:wrap}
 .chip{
-  display:flex;align-items:center;gap:8px;padding:8px 13px;border-radius:12px;
+  display:flex;align-items:center;gap:8px;padding:8px 13px;border-radius:12px;cursor:pointer;
   background:rgba(255,255,255,.03);border:1px solid var(--border);font-size:12.5px;font-weight:600;
+  color:var(--txt);transition:transform .16s,border-color .16s,background .16s,opacity .16s;
 }
-.chip .dot{width:9px;height:9px;border-radius:50%}
+.chip:hover{transform:translateY(-2px);border-color:var(--border-strong)}
+.chip .dot{width:10px;height:10px;border-radius:50%}
 .chip b{font-size:15px;font-weight:800}
-.chip.count{color:var(--muted)}
+.chip.muted{opacity:.4}
+.chip.st-normal   .dot{background:var(--normal);   box-shadow:0 0 8px var(--normal)}
+.chip.st-atencao  .dot{background:var(--atencao);  box-shadow:0 0 8px var(--atencao)}
+.chip.st-alerta   .dot{background:var(--alerta);   box-shadow:0 0 8px var(--alerta)}
+.chip.st-inundacao .dot{background:var(--inundacao);box-shadow:0 0 8px var(--inundacao)}
+.chip.st-normal.active   {border-color:var(--normal);   background:rgba(34,197,94,.14)}
+.chip.st-atencao.active  {border-color:var(--atencao);  background:rgba(234,179,8,.14)}
+.chip.st-alerta.active   {border-color:var(--alerta);   background:rgba(249,115,22,.14)}
+.chip.st-inundacao.active{border-color:var(--inundacao);background:rgba(239,68,68,.16)}
 
 .live{display:flex;align-items:center;gap:9px;font-size:12.5px;color:var(--muted)}
 .live .pulse{width:10px;height:10px;border-radius:50%;background:var(--normal);
   box-shadow:0 0 0 0 rgba(34,197,94,.7);animation:pulse 2s infinite}
 .live.off .pulse{background:#64748b;animation:none}
+.live-title{font-weight:700;color:#4ade80}
+.live.off .live-title{color:#94a3b8}
+.live-sub{font-size:11px}
 @keyframes pulse{70%{box-shadow:0 0 0 10px rgba(34,197,94,0)}100%{box-shadow:0 0 0 0 rgba(34,197,94,0)}}
 
 /* ---------- controles ---------- */
@@ -87,33 +102,49 @@ body::before{ /* leve textura de ruído/vinheta */
 
 /* ---------- grid ---------- */
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:18px}
+.empty{text-align:center;color:var(--dim);padding:40px}
+
 .card{
-  position:relative;border-radius:18px;padding:18px 18px 16px;overflow:hidden;cursor:pointer;
+  position:relative;border-radius:18px;padding:20px 18px 16px;overflow:hidden;cursor:pointer;
   background:var(--panel);border:1px solid var(--border);backdrop-filter:blur(10px);
   box-shadow:var(--shadow);transition:transform .22s cubic-bezier(.2,.7,.3,1),border-color .22s,box-shadow .22s;
   animation:rise .5s both;
 }
 @keyframes rise{from{opacity:0;transform:translateY(16px) scale(.98)}to{opacity:1;transform:none}}
-.card:hover{transform:translateY(-5px);border-color:var(--border-strong);
-  box-shadow:0 22px 50px -18px rgba(0,0,0,.85)}
-.card .accent{position:absolute;top:0;left:0;right:0;height:3px;background:var(--riv,var(--accent));opacity:.9}
-.card.st-inundacao{border-color:rgba(239,68,68,.45)}
-.card.st-inundacao::before{content:"";position:absolute;inset:0;border-radius:18px;pointer-events:none;
-  box-shadow:inset 0 0 60px -10px rgba(239,68,68,.35);animation:danger 2.4s ease-in-out infinite}
-.card.st-alerta{border-color:rgba(249,115,22,.35)}
-@keyframes danger{50%{box-shadow:inset 0 0 70px -6px rgba(239,68,68,.55)}}
+.card:hover{transform:translateY(-5px);border-color:var(--st);
+  box-shadow:0 22px 50px -18px rgba(0,0,0,.85), 0 0 0 1px color-mix(in srgb, var(--st) 40%, transparent)}
+
+/* faixa superior colorida pelo STATUS (semáforo) */
+.card .accent{position:absolute;top:0;left:0;right:0;height:4px;
+  background:linear-gradient(90deg, var(--st), color-mix(in srgb, var(--st) 55%, transparent));opacity:.95}
+
+/* borda + brilho por status */
+.card.st-normal{border-color:rgba(34,197,94,.32)}
+.card.st-atencao{border-color:rgba(234,179,8,.42)}
+.card.st-alerta{border-color:rgba(249,115,22,.5)}
+.card.st-inundacao{border-color:rgba(239,68,68,.62)}
+.card.st-atencao::before,.card.st-alerta::before,.card.st-inundacao::before{
+  content:"";position:absolute;inset:0;border-radius:18px;pointer-events:none}
+.card.st-atencao::before{box-shadow:inset 0 0 40px -18px rgba(234,179,8,.5)}
+.card.st-alerta::before{box-shadow:inset 0 0 50px -14px rgba(249,115,22,.55)}
+.card.st-inundacao::before{box-shadow:inset 0 0 60px -10px rgba(239,68,68,.5);animation:danger 2.4s ease-in-out infinite}
+@keyframes danger{50%{box-shadow:inset 0 0 72px -6px rgba(239,68,68,.7)}}
 
 .card-head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:6px}
+.head-txt{min-width:0}
 .city{font-size:16.5px;font-weight:800;letter-spacing:.2px}
 .river{font-size:12px;color:var(--muted);display:flex;align-items:center;gap:6px;margin-top:2px}
-.river .rdot{width:8px;height:8px;border-radius:50%;background:var(--riv,var(--accent))}
-.badge{font-size:10.5px;font-weight:800;letter-spacing:.6px;text-transform:uppercase;
-  padding:5px 10px;border-radius:999px;white-space:nowrap}
-.badge.normal{background:rgba(34,197,94,.14);color:#4ade80}
-.badge.atencao{background:rgba(234,179,8,.15);color:#facc15}
-.badge.alerta{background:rgba(249,115,22,.16);color:#fb923c}
-.badge.inundacao{background:rgba(239,68,68,.18);color:#f87171;animation:blink 1.4s step-end infinite}
-@keyframes blink{50%{opacity:.45}}
+.river .rdot{width:8px;height:8px;border-radius:50%;background:var(--riv,var(--accent));flex:0 0 auto}
+
+/* badge de status (semáforo) */
+.badge{display:inline-flex;align-items:center;gap:6px;font-size:10.5px;font-weight:800;letter-spacing:.6px;
+  text-transform:uppercase;padding:5px 11px 5px 9px;border-radius:999px;white-space:nowrap;border:1px solid transparent}
+.badge .bdot{width:7px;height:7px;border-radius:50%;background:currentColor;box-shadow:0 0 7px currentColor}
+.badge.normal{background:rgba(34,197,94,.14);color:#4ade80;border-color:rgba(34,197,94,.4)}
+.badge.atencao{background:rgba(234,179,8,.16);color:#facc15;border-color:rgba(234,179,8,.45)}
+.badge.alerta{background:rgba(249,115,22,.18);color:#fb923c;border-color:rgba(249,115,22,.5)}
+.badge.inundacao{background:rgba(239,68,68,.2);color:#f87171;border-color:rgba(239,68,68,.55);animation:blink 1.4s step-end infinite}
+@keyframes blink{50%{opacity:.5}}
 
 .metric-row{display:flex;align-items:flex-end;gap:14px;margin:8px 0 6px}
 .level{font-size:44px;font-weight:800;line-height:1;letter-spacing:-1px;
@@ -127,24 +158,27 @@ body::before{ /* leve textura de ruído/vinheta */
 .tube{position:relative;width:26px;border-radius:8px;background:rgba(255,255,255,.05);
   border:1px solid var(--border);overflow:hidden;flex:0 0 auto;min-height:70px}
 .tube .fill{position:absolute;left:0;right:0;bottom:0;border-radius:0 0 7px 7px;
-  background:linear-gradient(180deg,var(--riv,#38bdf8),rgba(56,189,248,.35));
+  background:linear-gradient(180deg,var(--st,#38bdf8),color-mix(in srgb,var(--st,#38bdf8) 35%,transparent));
   transition:height 1s cubic-bezier(.3,.8,.3,1)}
 .tube .fill::after{content:"";position:absolute;top:-6px;left:-30%;width:160%;height:12px;border-radius:50%;
-  background:rgba(255,255,255,.25);animation:wave 3s linear infinite}
+  background:rgba(255,255,255,.28);animation:wave 3s linear infinite}
 @keyframes wave{to{transform:translateX(30%)}}
-.tube .flood-line{position:absolute;left:-3px;right:-3px;height:2px;background:repeating-linear-gradient(90deg,#f87171 0 5px,transparent 5px 9px)}
+.tube .flood-line{position:absolute;top:0;left:-3px;right:-3px;height:2px;
+  background:repeating-linear-gradient(90deg,#ef4444 0 5px,transparent 5px 9px)}
 .gauge .g-meta{display:flex;flex-direction:column;justify-content:center;gap:7px;font-size:12px;flex:1}
 .gauge .g-meta .row{display:flex;justify-content:space-between;gap:10px}
 .gauge .g-meta .row span{color:var(--muted)}
 .gauge .g-meta .row b{font-weight:700}
 .pct{font-weight:800}
 
-/* mini chart */
-.spark{margin:6px -4px 10px;position:relative}
-.spark svg{display:block;width:100%;height:64px;overflow:visible}
-.spark .lbl{position:absolute;top:-2px;left:4px;font-size:10.5px;color:var(--dim);letter-spacing:.5px;text-transform:uppercase}
+/* mini chart do nível (por card) */
+.spark{margin:8px 0 10px;position:relative}
+.spark .lbl{display:block;font-size:10px;color:var(--dim);letter-spacing:.5px;text-transform:uppercase;margin-bottom:4px}
+.spark-box{height:66px;width:100%}
+.area-chart{display:block;width:100%;height:100%;overflow:visible}
+.chart-empty{height:100%;min-height:60px;display:flex;align-items:center;justify-content:center;color:var(--dim);font-size:12px}
 
-/* rodapé do card com infos (as "informações da imagem") */
+/* rodapé do card com infos */
 .facts{display:grid;grid-template-columns:1fr 1fr;gap:8px 12px;margin-top:6px;
   padding-top:12px;border-top:1px dashed var(--border)}
 .fact{display:flex;flex-direction:column;gap:2px}
@@ -157,25 +191,76 @@ body::before{ /* leve textura de ruído/vinheta */
   font-size:11px;color:var(--dim)}
 .seed-tag{font-size:10px;color:#eab308;background:rgba(234,179,8,.12);padding:2px 7px;border-radius:6px}
 .live-tag{font-size:10px;color:#4ade80;background:rgba(34,197,94,.12);padding:2px 7px;border-radius:6px}
+.tap-hint{transition:color .18s}
+.card:hover .tap-hint{color:var(--st)}
 
 /* ---------- modal ---------- */
-.modal-bg{position:fixed;inset:0;background:rgba(4,8,16,.72);backdrop-filter:blur(6px);
+.modal-bg{position:fixed;inset:0;background:rgba(4,8,16,.74);backdrop-filter:blur(6px);
   z-index:50;display:flex;align-items:center;justify-content:center;padding:24px;animation:fade .2s}
 @keyframes fade{from{opacity:0}to{opacity:1}}
-.modal{width:min(880px,100%);max-height:88vh;overflow:auto;border-radius:20px;padding:24px;
+.modal{position:relative;width:min(880px,100%);max-height:90vh;overflow:auto;border-radius:20px;padding:26px 26px 22px;
   background:linear-gradient(160deg,var(--panel-solid),#0e1626);border:1px solid var(--border-strong);
   box-shadow:0 30px 80px -20px #000;animation:rise .3s both}
-.modal h2{font-size:22px;font-weight:800}
-.modal .sub{color:var(--muted);font-size:13px;margin:2px 0 16px;display:flex;gap:8px;align-items:center}
-.modal .big-chart{background:rgba(255,255,255,.02);border:1px solid var(--border);border-radius:14px;padding:14px;margin:8px 0 18px}
+/* halo de status no topo do modal */
+.modal::before{content:"";position:absolute;top:0;left:0;right:0;height:100px;pointer-events:none;border-radius:20px 20px 0 0;
+  background:linear-gradient(180deg, color-mix(in srgb,var(--st) 22%,transparent), transparent)}
+.modal.st-inundacao::before{background:linear-gradient(180deg, rgba(239,68,68,.28), transparent)}
+
+.x{position:absolute;top:16px;right:18px;background:rgba(255,255,255,.06);border:1px solid var(--border);color:var(--txt);
+  width:36px;height:36px;border-radius:10px;font-size:20px;line-height:1;cursor:pointer;z-index:2;transition:.18s}
+.x:hover{background:rgba(255,255,255,.12);border-color:var(--border-strong)}
+
+.m-head{position:relative;z-index:1;margin-bottom:16px}
+.m-badge{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:800;letter-spacing:.6px;
+  text-transform:uppercase;padding:5px 12px 5px 10px;border-radius:999px;margin-bottom:10px;border:1px solid transparent}
+.m-badge .bdot{width:7px;height:7px;border-radius:50%;background:currentColor;box-shadow:0 0 7px currentColor}
+.m-badge.normal{background:rgba(34,197,94,.14);color:#4ade80;border-color:rgba(34,197,94,.4)}
+.m-badge.atencao{background:rgba(234,179,8,.16);color:#facc15;border-color:rgba(234,179,8,.45)}
+.m-badge.alerta{background:rgba(249,115,22,.18);color:#fb923c;border-color:rgba(249,115,22,.5)}
+.m-badge.inundacao{background:rgba(239,68,68,.2);color:#f87171;border-color:rgba(239,68,68,.55)}
+.modal h2{font-size:24px;font-weight:800}
+.modal .sub{color:var(--muted);font-size:13px;margin:3px 0 6px;display:flex;gap:8px;align-items:center}
+.modal .sub .rdot{width:9px;height:9px;border-radius:50%;display:inline-block}
+.m-desc{font-size:13px;color:var(--txt);opacity:.85}
+
+/* hero: nível grande + barra de ocupação */
+.m-hero{display:flex;gap:20px;flex-wrap:wrap;align-items:center;
+  background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:16px;padding:16px 18px;margin-bottom:16px}
+.hero-level{display:flex;flex-direction:column;gap:4px}
+.hl-num{font-size:46px;font-weight:800;line-height:1;letter-spacing:-1px;
+  background:linear-gradient(180deg,#fff,#bcd3f5);-webkit-background-clip:text;background-clip:text;color:transparent}
+.hl-num span{font-size:17px;font-weight:700;color:var(--muted);-webkit-text-fill-color:var(--muted);margin-left:4px}
+.hl-trend{font-size:13px;font-weight:700}
+.hl-trend.up{color:#fb7185}.hl-trend.down{color:#38bdf8}.hl-trend.flat{color:var(--muted)}
+.hero-gauge{flex:1;min-width:200px}
+.hg-top{display:flex;justify-content:space-between;font-size:12px;color:var(--muted);margin-bottom:6px}
+.hg-top b{font-size:15px;font-weight:800}
+.hg-bar{height:12px;border-radius:999px;background:rgba(255,255,255,.06);overflow:hidden;border:1px solid var(--border)}
+.hg-fill{height:100%;border-radius:999px;
+  background:linear-gradient(90deg, color-mix(in srgb,var(--st) 55%,transparent), var(--st));
+  transition:width 1s cubic-bezier(.3,.8,.3,1)}
+.hg-bot{display:flex;justify-content:space-between;font-size:11px;color:var(--dim);margin-top:5px}
+
+/* gráfico grande */
+.modal .big-chart{background:rgba(255,255,255,.02);border:1px solid var(--border);border-radius:14px;padding:14px 16px 12px;margin-bottom:16px}
+.bc-head{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;font-size:12px;color:var(--muted);margin-bottom:10px}
+.bc-legend{display:flex;gap:14px}
+.lg-item{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;color:var(--muted)}
+.lg-line{width:16px;height:3px;border-radius:2px}
+.lg-dash{width:16px;height:0;border-top:2px dashed #ef4444}
+.modal-chart{height:200px;width:100%}
+.bc-foot{display:flex;justify-content:space-between;font-size:11px;color:var(--dim);margin-top:8px}
+
+/* grade de estatísticas */
 .modal .stat-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px}
 .stat{background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:12px;padding:12px 14px}
-.stat .k{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px}
+.stat .k{font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px}
 .stat .v{font-size:20px;font-weight:800;margin-top:4px}
-.modal .close{position:absolute;top:16px;right:18px}
-.x{background:rgba(255,255,255,.06);border:1px solid var(--border);color:var(--txt);
-  width:36px;height:36px;border-radius:10px;font-size:18px;cursor:pointer}
-.modal .srclink{display:inline-flex;gap:6px;align-items:center;margin-top:16px;color:var(--accent);
+.stat .v.tinted{color:var(--vc)}
+.stat .v-sub{font-size:11px;color:var(--muted);margin-top:2px;font-weight:600}
+
+.m-links{display:flex;gap:18px;flex-wrap:wrap;margin-top:18px}
+.modal .srclink{display:inline-flex;gap:6px;align-items:center;color:var(--accent);
   text-decoration:none;font-size:13px;font-weight:600}
 .modal .srclink:hover{text-decoration:underline}
 
@@ -186,4 +271,8 @@ body::before{ /* leve textura de ruído/vinheta */
   .app{padding:14px 12px 40px}
   .grid{grid-template-columns:1fr}
   .level{font-size:38px}
+  .summary{width:100%;justify-content:space-between}
+  .chip{padding:7px 10px;font-size:11.5px}
+  .modal{padding:20px 16px 18px}
+  .hl-num{font-size:38px}
 }
