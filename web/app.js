@@ -370,78 +370,101 @@ function labelGeom(dir, r) {
   }
 }
 
-// Curva suave (Catmull-Rom → Bézier) passando pelos pontos.
-function smoothPath(pts) {
-  if (pts.length < 2) return "";
-  if (pts.length === 2) return `M${pts[0].x},${pts[0].y} L${pts[1].x},${pts[1].y}`;
-  let d = `M${pts[0].x.toFixed(1)},${pts[0].y.toFixed(1)}`;
+// Curva suave (Catmull-Rom → Bézier): devolve os segmentos cúbicos, para que
+// a linha E as setas usem exatamente a mesma geometria (setas alinhadas na curva).
+function curveSegments(pts) {
+  const segs = [];
   for (let i = 0; i < pts.length - 1; i++) {
     const p0 = pts[i - 1] || pts[i], p1 = pts[i], p2 = pts[i + 1], p3 = pts[i + 2] || pts[i + 1];
-    const c1x = p1.x + (p2.x - p0.x) / 6, c1y = p1.y + (p2.y - p0.y) / 6;
-    const c2x = p2.x - (p3.x - p1.x) / 6, c2y = p2.y - (p3.y - p1.y) / 6;
-    d += ` C${c1x.toFixed(1)},${c1y.toFixed(1)} ${c2x.toFixed(1)},${c2y.toFixed(1)} ${p2.x.toFixed(1)},${p2.y.toFixed(1)}`;
+    segs.push({
+      p1, p2,
+      c1: { x: p1.x + (p2.x - p0.x) / 6, y: p1.y + (p2.y - p0.y) / 6 },
+      c2: { x: p2.x - (p3.x - p1.x) / 6, y: p2.y - (p3.y - p1.y) / 6 },
+    });
   }
+  return segs;
+}
+function pathFromSegments(segs) {
+  if (!segs.length) return "";
+  const f = (n) => n.toFixed(1);
+  let d = `M${f(segs[0].p1.x)},${f(segs[0].p1.y)}`;
+  for (const s of segs) d += ` C${f(s.c1.x)},${f(s.c1.y)} ${f(s.c2.x)},${f(s.c2.y)} ${f(s.p2.x)},${f(s.p2.y)}`;
   return d;
 }
-// Uma seta de sentido no meio de cada segmento montante→jusante.
-function segArrows(pts) {
-  const a = [];
-  for (let i = 0; i < pts.length - 1; i++) {
-    const p = pts[i], q = pts[i + 1];
-    const dx = q.x - p.x, dy = q.y - p.y;
-    if (Math.hypot(dx, dy) < 22) continue; // evita seta em segmento curtinho
-    a.push({ x: (p.x + q.x) / 2, y: (p.y + q.y) / 2, ang: (Math.atan2(dy, dx) * 180) / Math.PI });
-  }
-  return a;
+// Ponto e tangente da cúbica em t — a seta fica exatamente sobre a linha.
+function bezAt(s, t) {
+  const mt = 1 - t;
+  const x = mt * mt * mt * s.p1.x + 3 * mt * mt * t * s.c1.x + 3 * mt * t * t * s.c2.x + t * t * t * s.p2.x;
+  const y = mt * mt * mt * s.p1.y + 3 * mt * mt * t * s.c1.y + 3 * mt * t * t * s.c2.y + t * t * t * s.p2.y;
+  const dx = 3 * mt * mt * (s.c1.x - s.p1.x) + 6 * mt * t * (s.c2.x - s.c1.x) + 3 * t * t * (s.p2.x - s.c2.x);
+  const dy = 3 * mt * mt * (s.c1.y - s.p1.y) + 6 * mt * t * (s.c2.y - s.c1.y) + 3 * t * t * (s.p2.y - s.c2.y);
+  return { x, y, ang: (Math.atan2(dy, dx) * 180) / Math.PI };
 }
+
+// Janelas de zoom sobre o mapa do RS.
+const ZOOMS = {
+  bacia: { X0: 1045, Y0: 590, VW: 900, VH: 482 },
+  rs: { X0: -40, Y0: -40, VW: RS.W + 80, VH: RS.H + 80 },
+};
 
 function MapView({ stations, rivers, onOpen }) {
   // As estações são projetadas no MESMO espaço do contorno do RS (projRS),
   // então ficam georreferenciadas sobre o mapa do estado. A viewBox é uma
   // janela sobre esse mapa: enquadra a bacia + o litoral leste, mantendo os
   // pontos bem espaçados (mostrar o estado inteiro amontoaria tudo).
-  const layout = useMemo(() => {
-    const pts = stations.filter((s) => s.lat != null && s.lng != null);
-    if (pts.length < 2) return null;
-    const coord = {};
-    for (const s of pts) coord[s.slug] = projRS(s.lat, s.lng);
-    return { X0: 1020, Y0: 575, VW: 990, VH: 530, coord };
+  const [zoom, setZoom] = useState("bacia");
+  const coord = useMemo(() => {
+    const c = {};
+    for (const s of stations) if (s.lat != null && s.lng != null) c[s.slug] = projRS(s.lat, s.lng);
+    return c;
   }, [stations]);
 
-  if (!layout) return html`<div class="map-empty">Carregando mapa…</div>`;
-  const { X0, Y0, VW, VH, coord } = layout;
+  if (Object.keys(coord).length < 2) return html`<div class="map-empty">Carregando mapa…</div>`;
+  const { X0, Y0, VW, VH } = ZOOMS[zoom];
+  // Ao afastar (RS inteiro) a viewBox cresce, então pinos/setas precisam
+  // acompanhar para continuarem visíveis; os rótulos somem (não caberiam).
+  const sc = VW / ZOOMS.bacia.VW;
+  const detail = zoom === "bacia";
   const g = coord[GUAIBA];
 
   const riverEls = FLOWS.map((f) => {
     const nodes = f.order.map((sl) => coord[sl]).filter(Boolean);
     if (!nodes.length) return null;
     const full = g && f.order[f.order.length - 1] !== GUAIBA ? [...nodes, g] : nodes;
+    if (full.length < 2) return null;
     const color = rivers[f.river] || "#38bdf8";
+    const segs = curveSegments(full);
     return html`<g key=${f.river}>
-      <path class="river-path" d=${smoothPath(full)} stroke=${color}/>
-      ${segArrows(full).map((a, i) => html`<path key=${i} class="flow-arrow" d="M-6,-5 L7,0 L-6,5 Z" fill=${color}
-        transform=${`translate(${a.x.toFixed(1)} ${a.y.toFixed(1)}) rotate(${a.ang.toFixed(1)})`}/>`)}
+      <path class="river-path" d=${pathFromSegments(segs)} stroke=${color}/>
+      ${segs.map((s, i) => {
+        if (Math.hypot(s.p2.x - s.p1.x, s.p2.y - s.p1.y) < 26 * sc) return null; // segmento curto
+        const a = bezAt(s, 0.5);
+        return html`<path key=${i} class="flow-arrow" d="M-6,-5 L7,0 L-6,5 Z" fill=${color}
+          transform=${`translate(${a.x.toFixed(1)} ${a.y.toFixed(1)}) rotate(${a.ang.toFixed(1)}) scale(${sc.toFixed(2)})`}/>`;
+      })}
     </g>`;
   });
 
   const markerEls = stations.filter((s) => coord[s.slug]).map((s) => {
     const c = coord[s.slug], col = STATUS_COLOR[s.status];
     const pct = s.flood ? s.level / s.flood : 0;
-    const r = 7 + Math.max(0, Math.min(1.25, pct)) * 7;
+    const r = (5.5 + Math.max(0, Math.min(1.25, pct)) * 5) * sc;
     const dir = LABEL_DIR[s.slug] || (c.x > X0 + VW * 0.7 ? "left" : "right");
     const G = labelGeom(dir, r);
     return html`<g key=${s.slug} class=${`marker st-${s.status}`} transform=${`translate(${c.x.toFixed(1)} ${c.y.toFixed(1)})`}
         onClick=${() => onOpen(s.slug)} role="button" tabindex="0"
         onKeyDown=${(e) => (e.key === "Enter" || e.key === " ") && onOpen(s.slug)}>
-      ${s.status === "inundacao" ? html`<circle class="pulse-ring" r=${r} fill="none" stroke=${col} stroke-width="2">
-        <animate attributeName="r" values=${`${r};${r + 13}`} dur="1.8s" repeatCount="indefinite"/>
+      <title>${s.city} · ${fmt(s.level)} m (cota ${fmt(s.flood)} m)</title>
+      ${s.status === "inundacao" ? html`<circle class="pulse-ring" r=${r} fill="none" stroke=${col} stroke-width=${2 * sc}>
+        <animate attributeName="r" values=${`${r};${r + 11 * sc}`} dur="1.8s" repeatCount="indefinite"/>
         <animate attributeName="opacity" values="0.75;0" dur="1.8s" repeatCount="indefinite"/></circle>` : null}
-      <circle class="m-halo" r=${r + 5} fill=${col}/>
-      <circle class="m-dot" r=${r} fill=${col}/>
-      <text class="m-city" x=${G.lx} y=${G.cityY} text-anchor=${G.anchor}>${s.city}</text>
-      <text class="m-lvl" x=${G.lx} y=${G.lvlY} text-anchor=${G.anchor}>
-        <tspan fill=${col}>${fmt(s.level)} m</tspan>${s.flood != null ? html`<tspan class="m-cota"> · cota ${fmt(s.flood)} m</tspan>` : null}
-      </text>
+      <circle class="m-halo" r=${r + 4 * sc} fill=${col}/>
+      <circle class="m-dot" r=${r} fill=${col} stroke-width=${2.5 * sc}/>
+      ${detail ? html`
+        <text class="m-city" x=${G.lx} y=${G.cityY} text-anchor=${G.anchor}>${s.city}</text>
+        <text class="m-lvl" x=${G.lx} y=${G.lvlY} text-anchor=${G.anchor}>
+          <tspan fill=${col}>${fmt(s.level)} m</tspan>${s.flood != null ? html`<tspan class="m-cota"> · cota ${fmt(s.flood)} m</tspan>` : null}
+        </text>` : null}
     </g>`;
   });
 
@@ -452,10 +475,16 @@ function MapView({ stations, rivers, onOpen }) {
           <h2>🗺️ Mapa da Bacia do Guaíba</h2>
           <p>Localização das estações, nível atual e o sentido da correnteza — <b>montante → jusante</b>. Toque num ponto para ver os detalhes.</p>
         </div>
-        <div class="map-legend">
-          ${["inundacao", "alerta", "atencao", "normal"].map((k) => html`
-            <span key=${k} class="lg"><span class="lgdot" style=${{ background: STATUS_COLOR[k] }}></span>${STATUS_LABEL[k]}</span>`)}
-          <span class="lg"><span class="lgarrow">▸</span>sentido do rio</span>
+        <div class="map-tools">
+          <div class="map-zoom">
+            <button class=${zoom === "bacia" ? "on" : ""} onClick=${() => setZoom("bacia")}>🔍 Bacia</button>
+            <button class=${zoom === "rs" ? "on" : ""} onClick=${() => setZoom("rs")}>🗺️ RS inteiro</button>
+          </div>
+          <div class="map-legend">
+            ${["inundacao", "alerta", "atencao", "normal"].map((k) => html`
+              <span key=${k} class="lg"><span class="lgdot" style=${{ background: STATUS_COLOR[k] }}></span>${STATUS_LABEL[k]}</span>`)}
+            <span class="lg"><span class="lgarrow">▸</span>sentido do rio</span>
+          </div>
         </div>
       </div>
 
@@ -469,12 +498,13 @@ function MapView({ stations, rivers, onOpen }) {
             </radialGradient>
           </defs>
           <path class="rs-outline" d=${RS.path}/>
-          <text class="rs-lbl" x=${X0 + 215} y=${Y0 + 432}>RIO GRANDE DO SUL</text>
-          ${g ? html`<ellipse cx=${g.x} cy=${g.y} rx="130" ry="78" fill="url(#guaibaGlow)"/>` : null}
-          ${g ? html`<line class="patos-line" x1=${g.x} y1=${g.y + 8} x2=${g.x} y2=${Y0 + VH - 92} stroke="#38bdf8"/>` : null}
-          ${g ? html`<path class="flow-arrow patos-arrow" d="M-6,-5 L7,0 L-6,5 Z" fill="#38bdf8"
-            transform=${`translate(${g.x} ${Y0 + VH - 90}) rotate(90)`}/>` : null}
-          ${g ? html`<text class="water-lbl" x=${g.x} y=${Y0 + VH - 64} text-anchor="middle">Delta do Jacuí · Lago Guaíba → Lagoa dos Patos → Oceano Atlântico</text>` : null}
+          ${detail ? html`<text class="rs-lbl" x=${X0 + 150} y=${Y0 + 386}>RIO GRANDE DO SUL</text>` : null}
+          ${g ? html`<ellipse cx=${g.x} cy=${g.y} rx=${130 * sc} ry=${78 * sc} fill="url(#guaibaGlow)"/>` : null}
+          ${g && detail ? html`
+            <line class="patos-line" x1=${g.x} y1=${g.y + 8} x2=${g.x} y2=${Y0 + VH - 92} stroke="#38bdf8"/>
+            <path class="flow-arrow patos-arrow" d="M-6,-5 L7,0 L-6,5 Z" fill="#38bdf8"
+              transform=${`translate(${g.x} ${Y0 + VH - 90}) rotate(90)`}/>
+            <text class="water-lbl" x=${g.x} y=${Y0 + VH - 64} text-anchor="middle">Delta do Jacuí · Lago Guaíba → Lagoa dos Patos → Oceano Atlântico</text>` : null}
           ${riverEls}
           ${markerEls}
         </svg>
