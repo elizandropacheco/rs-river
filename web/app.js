@@ -237,11 +237,16 @@ function StationCard({ st, points, riverColor, onOpen, index }) {
         </div>
       </div>
 
+      ${st.wind?.length ? html`
+        <div class=${`card-wind ${hasSouthWind(st.wind) ? "alert" : ""}`}>
+          <span class="cw-lbl">🌬️ Vento sul${hasSouthWind(st.wind) ? " · represa" : ""}</span>
+          <div class="cw-days">
+            ${st.wind.slice(0, 4).map((d) => html`<${WindDay} key=${d.date} d=${d} size="xs"/>`)}
+          </div>
+        </div>` : null}
+
       <div class="card-foot">
-        <span>
-          ${st.live ? html`<span class="live-tag">● ao vivo</span>` : html`<span class="seed-tag">cache/seed</span>`}
-          ${hasSouthWind(st.wind) ? html`<span class="wind-tag" title="Vento sul previsto: represa o Guaíba e eleva o nível">🌬️ vento sul</span>` : null}
-        </span>
+        <span>${st.live ? html`<span class="live-tag">● ao vivo</span>` : html`<span class="seed-tag">cache/seed</span>`}</span>
         <span class="tap-hint">toque para detalhes →</span>
       </div>
     </div>`;
@@ -254,33 +259,58 @@ const WIND_EFFECT = {
   escoa: { label: "escoa", hint: "vento norte ajuda a baixar" },
   neutro: { label: "neutro", hint: "sem efeito relevante" },
 };
-const weekdayLabel = (iso) => {
+const weekdayLabel = (iso, short = false) => {
   const d = new Date(`${iso}T12:00:00`);
   if (isNaN(d)) return iso;
-  return d.toLocaleDateString("pt-BR", { weekday: "short", day: "2-digit", month: "2-digit" });
+  return short
+    ? d.toLocaleDateString("pt-BR", { weekday: "short", day: "2-digit" }).replace(".", "")
+    : d.toLocaleDateString("pt-BR", { weekday: "short", day: "2-digit", month: "2-digit" });
 };
 // Há vento sul relevante nos próximos dias?
 const hasSouthWind = (wind) => (wind || []).slice(0, 4).some((d) => d.effect === "represa");
 
+// Célula de um dia, usada no topo, no card e no modal.
+function WindDay({ d, size = "" }) {
+  const small = size === "sm" || size === "xs";
+  return html`
+    <div class=${`wday ${size} ef-${d.effect}`} title=${`${d.dir} ${fmt(d.speed, 0)} km/h — ${WIND_EFFECT[d.effect]?.hint || ""}`}>
+      <div class="wd-date">${weekdayLabel(d.date, small)}</div>
+      <div class="wd-arrow" style=${{ transform: `rotate(${(d.deg ?? 0) + 180}deg)` }}>↑</div>
+      <div class="wd-dir">${d.dir}</div>
+      <div class="wd-spd">${fmt(d.speed, 0)}<span> km/h</span></div>
+      ${!small && d.gust != null ? html`<div class="wd-gust">raj. ${fmt(d.gust, 0)}</div>` : null}
+      <div class="wd-tag">${WIND_EFFECT[d.effect]?.label || "—"}</div>
+    </div>`;
+}
+
+const WIND_LEGEND = html`
+  Vento do quadrante <b>sul</b> empurra a água da Lagoa dos Patos de volta e <b>represa</b> a saída do
+  Guaíba, elevando o nível em Porto Alegre <b>mesmo sem chuva</b> — episódios fortes costumam somar
+  <b>30 a 50 cm</b>. Vento do <b>norte</b> facilita o escoamento e ajuda o nível a baixar.`;
+
+/* Faixa no topo — aparece tanto no Painel quanto no Mapa. */
+function WindStrip({ wind, city }) {
+  const alert = hasSouthWind(wind);
+  return html`
+    <div class=${`wind-strip ${alert ? "alert" : ""}`}>
+      <div class="ws-info">
+        <div class="ws-title">🌬️ Vento sul · ${city}${alert ? html`<span class="ws-flag">represamento previsto</span>` : null}</div>
+        <p class="ws-legend">${WIND_LEGEND}</p>
+      </div>
+      <div class="ws-days">
+        ${(wind || []).map((d) => html`<${WindDay} key=${d.date} d=${d} size="sm"/>`)}
+      </div>
+    </div>`;
+}
+
+/* Painel completo, dentro do modal. */
 function WindPanel({ wind }) {
   return html`
     <div class="wind-box">
       <h3>🌬️ Vento sul · represamento do Guaíba</h3>
-      <p class="wind-legend">
-        Vento do quadrante <b>sul</b> empurra a água da Lagoa dos Patos de volta e <b>represa</b> a saída do
-        Guaíba, elevando o nível em Porto Alegre <b>mesmo sem chuva</b> — episódios fortes costumam somar
-        <b>30 a 50 cm</b>. Vento do <b>norte</b> facilita o escoamento e ajuda o nível a baixar.
-      </p>
+      <p class="wind-legend">${WIND_LEGEND}</p>
       <div class="wind-days">
-        ${(wind || []).map((d) => html`
-          <div key=${d.date} class=${`wday ef-${d.effect}`} title=${WIND_EFFECT[d.effect]?.hint || ""}>
-            <div class="wd-date">${weekdayLabel(d.date)}</div>
-            <div class="wd-arrow" style=${{ transform: `rotate(${(d.deg ?? 0) + 180}deg)` }}>↑</div>
-            <div class="wd-dir">${d.dir}</div>
-            <div class="wd-spd">${fmt(d.speed, 0)}<span> km/h</span></div>
-            ${d.gust != null ? html`<div class="wd-gust">raj. ${fmt(d.gust, 0)}</div>` : null}
-            <div class="wd-tag">${WIND_EFFECT[d.effect]?.label || "—"}</div>
-          </div>`)}
+        ${(wind || []).map((d) => html`<${WindDay} key=${d.date} d=${d}/>`)}
       </div>
       <p class="wind-src">Direção e velocidade do vento: Open-Meteo · efeito de represamento conforme MetSul/Defesa Civil.</p>
     </div>`;
@@ -692,11 +722,15 @@ function App() {
   }, [stations, filter, q, sort]);
 
   const openSt = open ? stations.find((s) => s.slug === open) || null : null;
+  // Estação sujeita a represamento por vento (Guaíba) — alimenta a faixa do topo.
+  const windSt = stations.find((s) => s.wind?.length) || null;
 
   return html`
     <div class="app">
       <${Topbar} stations=${stations} updatedAt=${updatedAt} connected=${connected}
         intervalMin=${meta.intervalMin} filter=${filter} setFilter=${setFilter}/>
+
+      ${windSt ? html`<${WindStrip} wind=${windSt.wind} city=${windSt.city}/>` : null}
 
       <div class="controls">
         <div class="seg viewseg">
