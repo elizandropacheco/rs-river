@@ -122,23 +122,26 @@ export async function fetchForecast(station) {
 /* ---------------- satélite GOES-19 (NOAA/NESDIS STAR) ----------------
    URLs estáveis "sempre a mais recente" por tamanho. Proxy com cache de
    10 min: os clientes batem no nosso servidor, não na NOAA. */
-const SAT_SIZES = { 900: "900x540", 1800: "1800x1080" };
-const SAT_TTL = 10 * 60 * 1000;
-const satCache = new Map(); // size -> { at, buf, lastModified }
+const SAT_BASE = "https://cdn.star.nesdis.noaa.gov/GOES19/ABI/SECTOR/ssa/GEOCOLOR";
+// "anim" = loop animado das últimas horas (~14 MB) — só é buscado sob demanda
+// e fica em cache mais tempo para não martelar a NOAA.
+const SAT_KINDS = {
+  900: { file: "900x540.jpg", type: "image/jpeg", ttl: 10 * 60 * 1000, timeout: 30000 },
+  1800: { file: "1800x1080.jpg", type: "image/jpeg", ttl: 10 * 60 * 1000, timeout: 30000 },
+  anim: { file: "GOES19-SSA-GEOCOLOR-900x540.gif", type: "image/gif", ttl: 20 * 60 * 1000, timeout: 90000 },
+};
+const satCache = new Map(); // kind -> { at, buf, type, lastModified }
 
-export async function fetchSatellite(size) {
-  const dim = SAT_SIZES[size];
-  if (!dim) return null;
-  const hit = satCache.get(size);
-  if (hit && Date.now() - hit.at < SAT_TTL) return hit;
+export async function fetchSatellite(kind) {
+  const k = SAT_KINDS[kind];
+  if (!k) return null;
+  const hit = satCache.get(kind);
+  if (hit && Date.now() - hit.at < k.ttl) return hit;
   try {
-    const res = await fetchWithTimeout(
-      `https://cdn.star.nesdis.noaa.gov/GOES19/ABI/SECTOR/ssa/GEOCOLOR/${dim}.jpg`,
-      "image/jpeg", 30000,
-    );
+    const res = await fetchWithTimeout(`${SAT_BASE}/${k.file}`, k.type, k.timeout);
     const buf = Buffer.from(await res.arrayBuffer());
-    const entry = { at: Date.now(), buf, lastModified: res.headers.get("last-modified") };
-    satCache.set(size, entry);
+    const entry = { at: Date.now(), buf, type: k.type, lastModified: res.headers.get("last-modified") };
+    satCache.set(kind, entry);
     return entry;
   } catch (e) {
     console.warn("[goes] falha ao buscar satélite:", e.message);

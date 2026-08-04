@@ -635,3 +635,5 @@ body::after{content:"";position:fixed;inset:-22%;z-index:0;pointer-events:none;
 /* legenda: amostra da linha do rio colorida pela gravidade */
 .lg-line-sample{display:inline-block;width:22px;height:4px;border-radius:2px;
   background:linear-gradient(90deg,var(--normal),var(--atencao),var(--alerta),var(--inundacao))}
+
+.sat-note{color:var(--atencao);font-size:12px;margin:-6px 0 10px}

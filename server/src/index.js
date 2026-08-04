@@ -179,13 +179,14 @@ const server = http.createServer((req, res) => {
   // Avisos meteorológicos vigentes no RS (fonte: API oficial do INMET)
   if (url === "/api/alerts") return sendJson(res, 200, weather.getAlerts());
 
-  // Satélite GOES-19 GEOCOLOR (NOAA/NESDIS STAR) — proxy com cache de 10 min
-  const sat = url.match(/^\/api\/satelite\/(900|1800)\.jpg$/);
+  // Satélite GOES-19 GEOCOLOR (NOAA/NESDIS STAR) — proxy com cache
+  const sat = url.match(/^\/api\/satelite\/(900\.jpg|1800\.jpg|anim\.gif)$/);
   if (sat) {
-    return void weather.fetchSatellite(Number(sat[1])).then((img) => {
+    const kind = sat[1] === "anim.gif" ? "anim" : Number(sat[1].split(".")[0]);
+    return void weather.fetchSatellite(kind).then((img) => {
       if (!img) { res.writeHead(503); return res.end("satélite indisponível"); }
       res.writeHead(200, {
-        "Content-Type": "image/jpeg",
+        "Content-Type": img.type,
         "Cache-Control": "public, max-age=300",
         ...(img.lastModified ? { "Last-Modified": img.lastModified } : {}),
       });

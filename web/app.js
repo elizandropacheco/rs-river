@@ -433,8 +433,10 @@ function SatView() {
     const t = setInterval(() => setBucket(Math.floor(Date.now() / 600000)), 60000);
     return () => clearInterval(t);
   }, []);
-  const [big, setBig] = useState(false);
-  const src = `/api/satelite/${big ? 1800 : 900}.jpg?t=${bucket}`;
+  const [mode, setMode] = useState("leve"); // leve | alta | anim
+  const src = mode === "anim"
+    ? `/api/satelite/anim.gif?t=${Math.floor(bucket / 2)}`
+    : `/api/satelite/${mode === "alta" ? 1800 : 900}.jpg?t=${bucket}`;
   return html`
     <div class="satwrap">
       <div class="sat-head">
@@ -443,12 +445,14 @@ function SatView() {
           <p>Imagem mais recente do sul da América do Sul — nuvens, frentes e tempestades chegando ao RS. Atualiza a cada ~10 min.</p>
         </div>
         <div class="sat-tools seg">
-          <button class=${big ? "" : "on"} onClick=${() => setBig(false)}>Leve (900px)</button>
-          <button class=${big ? "on" : ""} onClick=${() => { setBig(true); track("satellite_hd"); }}>Alta (1800px)</button>
+          <button class=${mode === "leve" ? "on" : ""} onClick=${() => setMode("leve")}>Leve</button>
+          <button class=${mode === "alta" ? "on" : ""} onClick=${() => { setMode("alta"); track("satellite_hd"); }}>Alta</button>
+          <button class=${mode === "anim" ? "on" : ""} onClick=${() => { setMode("anim"); track("satellite_anim"); }}>▶ Animação</button>
         </div>
       </div>
+      ${mode === "anim" ? html`<p class="sat-note">Loop das últimas horas (~14 MB) — pode demorar alguns segundos para carregar.</p>` : null}
       <div class="sat-canvas">
-        <img src=${src} alt="Imagem de satélite GOES-19 GEOCOLOR do sul da América do Sul (NOAA/NESDIS)" loading="lazy"/>
+        <img key=${mode} src=${src} alt="Imagem de satélite GOES-19 GEOCOLOR do sul da América do Sul (NOAA/NESDIS)" loading="lazy"/>
       </div>
       <p class="sat-src">
         Fonte original: <a href="https://www.star.nesdis.noaa.gov/GOES/sector.php?sat=G19&sector=ssa" target="_blank" rel="noopener">NOAA/NESDIS STAR — GOES-19</a>,
