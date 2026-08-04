@@ -8,6 +8,9 @@ services:
     environment:
       # Intervalo (min) entre as coletas no nivelguaiba.com.br
       - CRAWL_INTERVAL_MIN=5
+      # Token do painel /admin (gestão do Google Tag Manager). Sem definir,
+      # um token aleatório é gerado no 1º boot e exibido no log.
+      # - ADMIN_TOKEN=defina-um-token-forte-aqui
     volumes:
       # Persiste o histórico de elevação acumulado entre reinícios
       - ./data:/app/data

@@ -17,6 +17,13 @@ const STATUS_DESC = {
 };
 const STATUS_ORDER = { inundacao: 0, alerta: 1, atencao: 2, normal: 3 };
 
+/* Analytics: empurra eventos para o dataLayer do Google Tag Manager (o
+   snippet é injetado pelo servidor quando ativado no /admin). Sem GTM ativo
+   o push é inofensivo — vira um array órfão. */
+const track = (event, params = {}) => {
+  try { (window.dataLayer = window.dataLayer || []).push({ event, ...params }); } catch {}
+};
+
 const fmt = (n, d = 2) => (n == null || Number.isNaN(n) ? "—" : Number(n).toFixed(d));
 // Tendência do nível: subindo / descendo / estável.
 const trendOf = (rate) => {
@@ -707,6 +714,28 @@ function App() {
   const [q, setQ] = useState("");
   const [open, setOpen] = useState(null);
 
+  // Pageview virtual para o GTM a cada troca de view (SPA não recarrega a
+  // página). A carga inicial já dispara o pageview padrão do contêiner.
+  const firstView = useRef(true);
+  useEffect(() => {
+    if (firstView.current) { firstView.current = false; return; }
+    track("page_view", {
+      page_path: view === "mapa" ? "/mapa" : "/",
+      page_title: view === "mapa" ? "Mapa da Bacia do Guaíba" : "Painel dos Rios",
+      page_location: location.origin + (view === "mapa" ? "/mapa" : "/"),
+    });
+  }, [view]);
+
+  // Abertura do modal de estação — evento de conteúdo mais valioso do painel.
+  const openStation = useCallback((slug, source) => {
+    setOpen(slug);
+    const st = stations.find((s) => s.slug === slug);
+    if (st) track("station_view", {
+      station_slug: st.slug, station_city: st.city, station_river: st.river,
+      station_status: st.status, station_level: st.level, source: source || view,
+    });
+  }, [stations, view]);
+
   const colorFor = useCallback((riv) => meta.rivers?.[riv] || "#38bdf8", [meta]);
 
   const vlist = useMemo(() => {
@@ -765,12 +794,12 @@ function App() {
       </div>
 
       ${view === "mapa"
-        ? html`<${MapView} stations=${stations} rivers=${meta.rivers || {}} onOpen=${(sl) => setOpen(sl)}/>`
+        ? html`<${MapView} stations=${stations} rivers=${meta.rivers || {}} onOpen=${(sl) => openStation(sl, "mapa")}/>`
         : html`
           <div class="grid">
             ${vlist.map((st, i) => html`
               <${StationCard} key=${st.slug} st=${st} index=${i}
-                points=${history[st.slug]} riverColor=${colorFor(st.river)} onOpen=${(s) => setOpen(s.slug)}/>
+                points=${history[st.slug]} riverColor=${colorFor(st.river)} onOpen=${(s) => openStation(s.slug, "painel")}/>
             `)}
           </div>
           ${vlist.length === 0 ? html`<div class="empty">Nenhuma estação para este filtro.</div>` : null}

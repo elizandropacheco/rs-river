@@ -112,6 +112,18 @@ node src/index.js        # http://localhost:8080
 | `PORT`               | 8080   | Porta do servidor                    |
 | `CRAWL_INTERVAL_MIN` | 5      | Minutos entre cada coleta            |
 | `DATA_DIR`           | ./data | Onde o histórico é persistido        |
+| `ADMIN_TOKEN`        | gerado | Token do painel `/admin` (sem definir, um aleatório é gerado no 1º boot e mostrado no log) |
+
+### 🛠️ Painel de administração (`/admin`)
+
+Acesse **`/admin`** com o `ADMIN_TOKEN` para gerenciar o **Google Tag Manager**
+sem novo deploy: informe o ID do contêiner (`GTM-XXXXXXX`) e ative — o snippet
+passa a ser injetado pelo servidor em **todas as páginas da plataforma**
+(painel público, mapa e o próprio admin), com **carregamento adiado** (primeira
+interação ou 3,5 s) para não degradar os Core Web Vitals. A SPA envia eventos
+ao `dataLayer` automaticamente: `page_view` virtual ao alternar Painel/Mapa e
+`station_view` ao abrir os detalhes de uma estação — configure as tags no GTM a
+partir desses eventos. A configuração fica em `DATA_DIR/settings.json`.
 
 ---
 

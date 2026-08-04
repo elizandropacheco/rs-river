@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Site de página única. Só loc + lastmod: changefreq/priority são ignorados
+     pelo Google. Atualize o lastmod apenas em mudanças estruturais reais. -->
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url>
+    <loc>https://niveldosrios.guerreirosdohumaita.com.br/</loc>
+    <lastmod>2026-08-04T09:00:00-03:00</lastmod>
+  </url>
+</urlset>

@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Admin · RS River — Guerreiros do Humaitá</title>
+  <meta name="robots" content="noindex, nofollow" />
+  <meta name="theme-color" content="#0a0e17" />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%E2%9A%99%EF%B8%8F%3C/text%3E%3C/svg%3E" />
+  <style>
+    :root {
+      --bg: #0a0e17; --panel: #111827; --panel2: #0f1626; --line: #1f2a44;
+      --txt: #e2e8f0; --muted: #8ea3c6; --accent: #38bdf8; --ok: #22c55e;
+      --warn: #eab308; --err: #f87171;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: radial-gradient(1200px 600px at 70% -10%, #10203a 0%, var(--bg) 55%) fixed;
+      color: var(--txt); font: 15px/1.6 system-ui, -apple-system, "Segoe UI", sans-serif;
+      min-height: 100vh; display: flex; flex-direction: column; align-items: center;
+      padding: 32px 16px;
+    }
+    .wrap { width: 100%; max-width: 640px; }
+    .brand { display: flex; align-items: center; gap: 12px; margin-bottom: 26px; }
+    .brand .wave { font-size: 30px; }
+    .brand h1 { font-size: 19px; letter-spacing: .2px; }
+    .brand p { color: var(--muted); font-size: 12.5px; }
+    .card {
+      background: linear-gradient(180deg, var(--panel) 0%, var(--panel2) 100%);
+      border: 1px solid var(--line); border-radius: 14px; padding: 22px;
+      box-shadow: 0 12px 40px rgba(0,0,0,.35); margin-bottom: 16px;
+    }
+    .card h2 { font-size: 15px; margin-bottom: 4px; display: flex; align-items: center; gap: 8px; }
+    .card .sub { color: var(--muted); font-size: 12.5px; margin-bottom: 16px; }
+    label { display: block; font-size: 12px; color: var(--muted); margin: 14px 0 5px; text-transform: uppercase; letter-spacing: .6px; }
+    input[type=text], input[type=password] {
+      width: 100%; background: #0b1220; border: 1px solid var(--line); color: var(--txt);
+      border-radius: 9px; padding: 10px 12px; font-size: 14.5px; outline: none;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    }
+    input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(56,189,248,.15); }
+    .row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 16px; }
+    .switch { position: relative; width: 46px; height: 26px; flex: none; }
+    .switch input { opacity: 0; width: 0; height: 0; }
+    .slider {
+      position: absolute; inset: 0; background: #1e293b; border: 1px solid var(--line);
+      border-radius: 26px; cursor: pointer; transition: .2s;
+    }
+    .slider::before {
+      content: ""; position: absolute; width: 18px; height: 18px; left: 3px; top: 3px;
+      background: var(--muted); border-radius: 50%; transition: .2s;
+    }
+    .switch input:checked + .slider { background: rgba(34,197,94,.25); border-color: var(--ok); }
+    .switch input:checked + .slider::before { transform: translateX(20px); background: var(--ok); }
+    button.primary {
+      margin-top: 20px; width: 100%; padding: 11px; border: none; border-radius: 9px;
+      background: linear-gradient(135deg, #0ea5e9, #38bdf8); color: #04121f;
+      font-weight: 700; font-size: 14.5px; cursor: pointer; letter-spacing: .3px;
+    }
+    button.primary:hover { filter: brightness(1.08); }
+    button.primary:disabled { opacity: .55; cursor: wait; }
+    button.ghost {
+      background: none; border: 1px solid var(--line); color: var(--muted);
+      border-radius: 8px; padding: 6px 12px; font-size: 12.5px; cursor: pointer;
+    }
+    button.ghost:hover { color: var(--txt); border-color: var(--muted); }
+    .msg { margin-top: 14px; font-size: 13.5px; border-radius: 9px; padding: 10px 12px; display: none; }
+    .msg.ok { display: block; background: rgba(34,197,94,.1); border: 1px solid rgba(34,197,94,.35); color: #86efac; }
+    .msg.err { display: block; background: rgba(248,113,113,.08); border: 1px solid rgba(248,113,113,.35); color: var(--err); }
+    .status { display: flex; align-items: center; gap: 8px; font-size: 13px; margin-top: 4px; }
+    .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--muted); }
+    .dot.on { background: var(--ok); box-shadow: 0 0 10px rgba(34,197,94,.7); }
+    .dot.off { background: var(--warn); }
+    .hint { color: var(--muted); font-size: 12.5px; margin-top: 10px; line-height: 1.55; }
+    .hint code { background: #0b1220; border: 1px solid var(--line); border-radius: 5px; padding: 1px 6px; font-size: 12px; }
+    .foot { text-align: center; color: var(--muted); font-size: 12px; margin-top: 12px; }
+    .foot a { color: var(--accent); text-decoration: none; }
+    .topline { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+    #panel { display: none; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="brand">
+      <span class="wave">🌊</span>
+      <div>
+        <h1>RS River · Administração</h1>
+        <p>Guerreiros do Humaitá — gestão da plataforma</p>
+      </div>
+    </div>
+
+    <!-- login -->
+    <div class="card" id="login">
+      <h2>🔐 Acesso restrito</h2>
+      <p class="sub">Informe o token de administrador para gerenciar a plataforma.</p>
+      <label for="token">Token</label>
+      <input type="password" id="token" autocomplete="off" placeholder="token do administrador" />
+      <button class="primary" id="loginBtn">Entrar</button>
+      <div class="msg" id="loginMsg"></div>
+      <p class="hint">O token é definido pela variável <code>ADMIN_TOKEN</code> no servidor. Sem ela, um token aleatório é gerado e exibido no log de inicialização.</p>
+    </div>
+
+    <!-- painel -->
+    <div id="panel">
+      <div class="card">
+        <div class="topline">
+          <h2>🏷️ Google Tag Manager</h2>
+          <button class="ghost" id="logoutBtn">Sair</button>
+        </div>
+        <p class="sub">O contêiner é injetado pelo servidor em <b>todas as páginas da plataforma</b> — painel público, mapa e este admin — sem precisar de novo deploy.</p>
+
+        <div class="status"><span class="dot" id="gtmDot"></span><span id="gtmStatus">carregando…</span></div>
+
+        <label for="gtmId">ID do contêiner</label>
+        <input type="text" id="gtmId" placeholder="GTM-XXXXXXX" autocomplete="off" spellcheck="false" />
+
+        <div class="row">
+          <div>
+            <b style="font-size:14px">Ativar rastreamento</b>
+            <div class="hint" style="margin-top:2px">Liga/desliga a injeção do snippet em toda a plataforma.</div>
+          </div>
+          <label class="switch">
+            <input type="checkbox" id="gtmEnabled" />
+            <span class="slider"></span>
+          </label>
+        </div>
+
+        <button class="primary" id="saveBtn">Salvar configurações</button>
+        <div class="msg" id="saveMsg"></div>
+
+        <p class="hint">
+          A SPA envia eventos ao <code>dataLayer</code> automaticamente: <code>page_view</code> virtual ao trocar
+          entre Painel e Mapa e <code>station_view</code> ao abrir os detalhes de uma estação — configure as tags
+          no GTM a partir desses eventos.
+        </p>
+      </div>
+    </div>
+
+    <p class="foot">Um projeto <a href="https://guerreirosdohumaita.com.br" target="_blank" rel="noopener">Guerreiros do Humaitá</a> · <i>O Povo pelo Povo!</i></p>
+  </div>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const KEY = "rsriver_admin_token";
+    let token = sessionStorage.getItem(KEY) || "";
+
+    const api = (method, body) => fetch("/api/admin/settings", {
+      method,
+      headers: { "Authorization": "Bearer " + token, "Content-Type": "application/json" },
+      body: body ? JSON.stringify(body) : undefined,
+    });
+
+    function show(el, cls, text) { el.className = "msg " + cls; el.textContent = text; }
+    function hide(el) { el.className = "msg"; }
+
+    function renderGtm(gtm) {
+      $("gtmId").value = gtm.containerId || "";
+      $("gtmEnabled").checked = !!gtm.enabled;
+      const dot = $("gtmDot"), st = $("gtmStatus");
+      if (gtm.enabled) {
+        dot.className = "dot on";
+        st.innerHTML = "Ativo — <b>" + gtm.containerId + "</b> injetado em toda a plataforma";
+      } else {
+        dot.className = "dot off";
+        st.textContent = gtm.containerId ? "Configurado, mas desativado" : "Não configurado";
+      }
+    }
+
+    async function enter() {
+      hide($("loginMsg"));
+      const r = await api("GET").catch(() => null);
+      if (!r || !r.ok) {
+        token = ""; sessionStorage.removeItem(KEY);
+        if (r && r.status === 401) show($("loginMsg"), "err", "Token inválido.");
+        else if (r) show($("loginMsg"), "err", "Erro ao conectar ao servidor.");
+        return false;
+      }
+      const data = await r.json();
+      sessionStorage.setItem(KEY, token);
+      $("login").style.display = "none";
+      $("panel").style.display = "block";
+      renderGtm(data.gtm || {});
+      return true;
+    }
+
+    $("loginBtn").onclick = () => { token = $("token").value.trim(); if (token) enter(); };
+    $("token").addEventListener("keydown", (e) => { if (e.key === "Enter") $("loginBtn").click(); });
+
+    $("logoutBtn").onclick = () => {
+      token = ""; sessionStorage.removeItem(KEY);
+      $("panel").style.display = "none";
+      $("login").style.display = "block";
+      $("token").value = "";
+    };
+
+    $("saveBtn").onclick = async () => {
+      hide($("saveMsg"));
+      $("saveBtn").disabled = true;
+      try {
+        const r = await api("PUT", {
+          gtm: { containerId: $("gtmId").value.trim(), enabled: $("gtmEnabled").checked },
+        });
+        const data = await r.json().catch(() => ({}));
+        if (!r.ok) { show($("saveMsg"), "err", data.error || "Falha ao salvar."); return; }
+        renderGtm(data.gtm || {});
+        show($("saveMsg"), "ok", data.gtm.enabled
+          ? "Salvo — o GTM já está ativo em todas as páginas (recarregue-as para ver o snippet)."
+          : "Salvo — rastreamento desativado em toda a plataforma.");
+      } finally {
+        $("saveBtn").disabled = false;
+      }
+    };
+
+    if (token) enter();
+  </script>
+</body>
+</html>

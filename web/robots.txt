@@ -1,0 +1,10 @@
+# RS River — niveldosrios.guerreirosdohumaita.com.br
+# JS, CSS e /api/ liberados: o Googlebot precisa deles para renderizar o painel.
+# Bots de IA permitidos de propósito — ser citado por assistentes em emergência
+# de enchente é exatamente o objetivo deste site.
+
+User-agent: *
+Allow: /
+Disallow: /admin
+
+Sitemap: https://niveldosrios.guerreirosdohumaita.com.br/sitemap.xml

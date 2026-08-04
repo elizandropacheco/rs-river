@@ -418,3 +418,22 @@ body::before{ /* leve textura de ruído/vinheta */
   .modal{padding:20px 16px 18px}
   .hl-num{font-size:38px}
 }
+
+/* ---------- seção "sobre" (SEO/E-E-A-T, fora do #root) ---------- */
+.about{position:relative;z-index:1;max-width:860px;margin:8px auto 48px;padding:26px 22px 6px;
+  color:var(--muted);font-size:13.5px;line-height:1.75;border-top:1px solid var(--border)}
+.about h2{color:var(--txt);font-size:16px;margin:22px 0 10px}
+.about h2:first-child{margin-top:0}
+.about h3{color:var(--txt);font-size:14px;margin:18px 0 8px}
+.about p{margin:0 0 12px}
+.about a{color:var(--accent)}
+.about strong{color:var(--txt);font-weight:600}
+.about-levels{list-style:none;margin:0 0 12px;padding:0;display:grid;
+  grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:6px 22px}
+.about-levels li{padding:6px 10px;border:1px solid var(--border);border-radius:8px;
+  background:var(--panel)}
+.about-levels strong{color:var(--txt)}
+.about-updated{font-size:12px;color:var(--dim)}
+.about-warning{border:1px solid rgba(239,68,68,.35);background:rgba(239,68,68,.07);
+  border-radius:10px;padding:10px 14px;color:#fca5a5}
+@media (max-width:640px){.about-levels{grid-template-columns:1fr}}
