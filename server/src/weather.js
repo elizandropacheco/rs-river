@@ -278,31 +278,58 @@ async function cemadenToken() {
 export const cemadenEnabled = () =>
   !!(process.env.CEMADEN_TOKEN || (process.env.CEMADEN_EMAIL && process.env.CEMADEN_PASSWORD));
 
+// Uma única chamada estadual traz TODOS os pluviômetros do RS (rede 11) das
+// últimas 24 h em CSV (horário UTC): "cod;nome;municipio;uf;lat;lng;datahora;
+// sensor;valor;qualificacao;offset". Agregamos a chuva por estação e cada
+// cidade usa o pluviômetro mais próximo (≤ 15 km).
+let cemadenAll = { at: 0, stations: null }; // [{code, city, lat, lng, rain24h}]
+
+async function loadCemadenNetwork() {
+  if (cemadenAll.stations && Date.now() - cemadenAll.at < CEMADEN_DATA_TTL) return cemadenAll.stations;
+  const token = await cemadenToken();
+  if (!token) return null;
+  const fmt = (d) => d.toISOString().slice(0, 16).replace(/[-T:]/g, "");
+  const fim = new Date(), ini = new Date(Date.now() - 24 * 3600 * 1000);
+  const res = await fetch(
+    `https://sws.cemaden.gov.br/PED/rest/pcds/dados_rede?rede=11&uf=RS&inicio=${fmt(ini)}&fim=${fmt(fim)}`,
+    { headers: { token, "User-Agent": UA } },
+  );
+  if (!res.ok) throw new Error("HTTP " + res.status);
+  const text = await res.text();
+  const acc = new Map(); // code -> { code, city, lat, lng, rain }
+  for (const line of text.split("\n")) {
+    const c = line.split(";");
+    if (c.length < 9 || c[7] !== "chuva") continue;
+    const v = parseFloat(c[8]);
+    if (!Number.isFinite(v)) continue;
+    const cur = acc.get(c[0]) || {
+      code: c[0], city: c[2], lat: parseFloat(c[4]), lng: parseFloat(c[5]), rain: 0,
+    };
+    cur.rain += v;
+    acc.set(c[0], cur);
+  }
+  cemadenAll = { at: Date.now(), stations: [...acc.values()] };
+  console.log(`[cemaden] ${cemadenAll.stations.length} pluviômetros com dados no RS (24 h)`);
+  return cemadenAll.stations;
+}
+
 export async function fetchCemadenRain(station) {
-  if (!cemadenEnabled() || !station.ibge) return null;
-  const hit = cemadenCache.get(station.ibge);
+  if (!cemadenEnabled()) return null;
+  const hit = cemadenCache.get(station.slug);
   if (hit && Date.now() - hit.at < CEMADEN_DATA_TTL) return hit.data;
   try {
-    const token = await cemadenToken();
-    if (!token) return null;
-    const res = await fetch(
-      `https://sws.cemaden.gov.br/PED/rest/pcds/dados_pcd?codibge=${station.ibge}`,
-      { headers: { token, Accept: "application/json", "User-Agent": UA } },
-    );
-    if (!res.ok) throw new Error("HTTP " + res.status);
-    const body = await res.json();
-    // formato defensivo: aceita array de medições {chuva|valorMedida, datahora}
-    const rows = Array.isArray(body) ? body : body?.dados || body?.pcds || [];
-    let rain24 = 0, got = false, stationName = null;
-    const cutoff = Date.now() - 24 * 3600 * 1000;
-    for (const r of rows) {
-      const ts = Date.parse(r.datahora || r.dataHora || r.timestamp || "");
-      const v = parseFloat(r.chuva ?? r.valorMedida ?? r.valor);
-      if (Number.isFinite(v) && (!Number.isFinite(ts) || ts >= cutoff)) { rain24 += v; got = true; }
-      stationName ||= r.nomeestacao || r.nomeEstacao || r.estacao || null;
+    const all = await loadCemadenNetwork();
+    if (!all?.length) return null;
+    let best = null;
+    for (const p of all) {
+      if (!Number.isFinite(p.lat) || !Number.isFinite(p.lng)) continue;
+      const d = hav(station.lat, station.lng, p.lat, p.lng);
+      if (!best || d < best.d) best = { d, p };
     }
-    const data = got ? { rain24h: +rain24.toFixed(1), station: stationName } : null;
-    cemadenCache.set(station.ibge, { at: Date.now(), data });
+    const data = best && best.d <= 15
+      ? { rain24h: +best.p.rain.toFixed(1), station: `${best.p.city} (${best.d.toFixed(0)} km)` }
+      : null;
+    cemadenCache.set(station.slug, { at: Date.now(), data });
     return data;
   } catch (e) {
     console.warn(`[cemaden] ${station.slug}: ${e.message}`);
