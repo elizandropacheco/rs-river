@@ -428,15 +428,22 @@ body::before{ /* leve textura de ruído/vinheta */
 .about p{margin:0 0 12px}
 .about a{color:var(--accent)}
 .about strong{color:var(--txt);font-weight:600}
-.about-levels{list-style:none;margin:0 0 12px;padding:0;display:grid;
-  grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:6px 22px}
-.about-levels li{padding:6px 10px;border:1px solid var(--border);border-radius:8px;
-  background:var(--panel)}
+/* lista de níveis recolhida num <details>: útil p/ SEO e para quem quer texto,
+   sem pesar visualmente — o painel acima já mostra tudo ao vivo. */
+.about-levels-box summary{cursor:pointer;list-style:none;display:flex;align-items:baseline;gap:8px}
+.about-levels-box summary::-webkit-details-marker{display:none}
+.about-levels-box summary::before{content:"▸";color:var(--accent);font-size:13px;transition:transform .2s}
+.about-levels-box[open] summary::before{transform:rotate(90deg)}
+.about-levels-box summary h2{display:inline;margin:0}
+.al-hint{font-size:11px;font-weight:600;color:var(--dim);text-transform:uppercase;letter-spacing:.6px}
+.about-levels{list-style:none;margin:12px 0 8px;padding:0;
+  columns:2;column-gap:40px}
+.about-levels li{padding:3px 0;break-inside:avoid}
 .about-levels strong{color:var(--txt)}
-.about-updated{font-size:12px;color:var(--dim)}
+.about-updated{font-size:12px;color:var(--dim);margin-bottom:4px}
+@media (max-width:720px){.about-levels{columns:1}}
 .about-warning{border:1px solid rgba(239,68,68,.35);background:rgba(239,68,68,.07);
   border-radius:10px;padding:10px 14px;color:#fca5a5}
-@media (max-width:640px){.about-levels{grid-template-columns:1fr}}
 
 /* ---------- avisos INMET ---------- */
 .inmet-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:10px;margin:14px 0 4px}
