@@ -624,9 +624,10 @@ function SatView() {
    Grade fixa de tiles Web-Mercator (z=6) cobrindo o RS, animando os frames
    do radar composto: ~2 h de passado + previsão imediata. Sem biblioteca de
    mapas — a grade é estática e as cidades são projetadas por cima. */
-// z=8 focado na Bacia do Guaíba (lon −54,8…−49,2 · lat −27,1…−31,9):
-// todas as 14 cidades no quadro, com o radar bem mais próximo.
-const RADAR_GRID = { z: 8, xs: [89, 90, 91, 92], ys: [148, 149, 150, 151] };
+// O RainViewer só serve tiles até z=7 — usamos z=7 com tiles de 512 px
+// (dobro da resolução) numa grade 3×2 apertada na bacia
+// (lon −56,25…−47,8 · lat −27,1…−31,9): todas as 14 cidades no quadro.
+const RADAR_GRID = { z: 7, xs: [44, 45, 46], ys: [74, 75], px: 512 };
 const mercY = (lat) => {
   const r = (lat * Math.PI) / 180;
   return (1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2;
@@ -656,7 +657,7 @@ function RadarView({ stations }) {
 
   if (!frames) return html`<div class="map-empty">Carregando radar…</div>`;
   const f = all[Math.min(idx, all.length - 1)];
-  const { z, xs, ys } = RADAR_GRID;
+  const { z, xs, ys, px } = RADAR_GRID;
   const n = 2 ** z;
   const x0 = xs[0] / n, x1 = (xs[xs.length - 1] + 1) / n;
   const y0 = ys[0] / n, y1 = (ys[ys.length - 1] + 1) / n;
@@ -679,12 +680,12 @@ function RadarView({ stations }) {
           <button onClick=${() => setPlaying((p) => !p)}>${playing ? "⏸ Pausar" : "▶ Rodar"}</button>
         </div>
       </div>
-      <div class="radar-canvas">
+      <div class="radar-canvas" style=${{ aspectRatio: `${xs.length}/${ys.length}` }}>
         ${ys.map((y) => xs.map((x) => html`
           <img key=${`${x}-${y}`} class="radar-tile"
             style=${{ left: ((xs.indexOf(x)) / xs.length * 100) + "%", top: ((ys.indexOf(y)) / ys.length * 100) + "%",
               width: (100 / xs.length) + "%", height: (100 / ys.length) + "%" }}
-            src=${`${frames.host}${f.path}/256/${z}/${x}/${y}/4/1_1.png`} alt=""/>
+            src=${`${frames.host}${f.path}/${px}/${z}/${x}/${y}/4/1_1.png`} alt=""/>
         `))}
         ${stations.filter((s) => s.lat != null).map((s) => {
           const p = pos(s.lat, s.lng);
@@ -911,19 +912,23 @@ function segGravityColor(slugA, slugB, stations) {
 /* Waypoints geográficos reais (cidades/foz ao longo do curso) inseridos entre
    as estações — aproximam o traçado desenhado do rio de verdade. Chave:
    "slugMontante|slugJusante" ("…|portoalegre" é o trecho final até o delta). */
+/* Na realidade os rios NÃO se cruzam: convergem no Delta do Jacuí, ao norte
+   de Porto Alegre. Os trechos finais afunilam no delta em ângulos separados
+   (Jacuí/Taquari pelo oeste, Caí pelo norte, Sinos pelo nordeste, Gravataí
+   pelo leste) para o desenho respeitar isso. */
 const RIVER_VIA = {
-  // Taquari deságua no Jacuí junto a Taquari/Triunfo e segue ao delta
-  "bomretirodosul|portoalegre": [[-29.80, -51.86], [-29.94, -51.72], [-29.96, -51.45]],
-  // Jacuí passa por São Jerônimo/Triunfo antes do delta
-  "riopardo|portoalegre": [[-29.96, -51.74], [-29.95, -51.42]],
-  // Caí desce por Montenegro e desemboca perto de Nova Santa Rita
-  "saosebastiaodocai|portoalegre": [[-29.69, -51.46], [-29.87, -51.33]],
+  // Taquari deságua no Jacuí junto a Taquari/Triunfo e segue o canal ao delta
+  "bomretirodosul|portoalegre": [[-29.80, -51.86], [-29.945, -51.71], [-29.975, -51.38]],
+  // Jacuí passa por São Jerônimo/Triunfo e entra no delta pelo oeste
+  "riopardo|portoalegre": [[-29.96, -51.75], [-29.955, -51.40]],
+  // Caí desce por Montenegro e chega ao delta pelo norte
+  "saosebastiaodocai|portoalegre": [[-29.69, -51.46], [-29.90, -51.34], [-29.955, -51.27]],
   // Sinos passa por Campo Bom/Novo Hamburgo antes de São Leopoldo…
   "taquara|saoleopoldo": [[-29.68, -50.98], [-29.72, -51.10]],
-  // …e segue por Sapucaia/Esteio até o delta
-  "saoleopoldo|portoalegre": [[-29.83, -51.15], [-29.93, -51.25]],
-  // Gravataí atravessa Cachoeirinha rumo ao Guaíba
-  "gravatai|portoalegre": [[-29.95, -51.10]],
+  // …e segue por Sapucaia/Esteio, entrando no delta pelo nordeste
+  "saoleopoldo|portoalegre": [[-29.83, -51.16], [-29.93, -51.23]],
+  // Gravataí atravessa Cachoeirinha e chega pelo leste
+  "gravatai|portoalegre": [[-29.94, -51.09], [-29.985, -51.17]],
 };
 
 /* Monta os nós do rio (estações + waypoints projetados) e a cor de cada
