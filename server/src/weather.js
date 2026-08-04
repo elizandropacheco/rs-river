@@ -103,7 +103,8 @@ export async function fetchForecast(station) {
   if (hit && Date.now() - hit.at < FC_TTL) return hit.data;
   const url = "https://api.open-meteo.com/v1/forecast" +
     `?latitude=${station.lat}&longitude=${station.lng}` +
-    "&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max" +
+    "&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max," +
+    "wind_speed_10m_max,wind_direction_10m_dominant" +
     "&timezone=America%2FSao_Paulo&forecast_days=7";
   const day = (await fetchJson(url))?.daily;
   if (!day?.time) return hit?.data || null;
@@ -114,6 +115,8 @@ export async function fetchForecast(station) {
     tmin: day.temperature_2m_min?.[i] ?? null,
     rain: day.precipitation_sum?.[i] ?? null,
     prob: day.precipitation_probability_max?.[i] ?? null,
+    wspd: day.wind_speed_10m_max?.[i] ?? null,
+    wdeg: day.wind_direction_10m_dominant?.[i] ?? null,
   }));
   fcCache.set(station.slug, { at: Date.now(), data });
   return data;

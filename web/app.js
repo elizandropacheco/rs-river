@@ -285,19 +285,44 @@ function StationCard({ st, points, riverColor, onOpen, index }) {
         </div>
       </div>
 
-      ${st.wind?.length ? html`
-        <div class=${`card-wind ${hasSouthWind(st.wind) ? "alert" : ""}`}>
-          <span class="cw-lbl">🌬️ Vento sul${hasSouthWind(st.wind) ? " · represa" : ""}</span>
-          <div class="cw-days">
-            ${st.wind.slice(0, 4).map((d) => html`<${WindDay} key=${d.date} d=${d} size="xs"/>`)}
-          </div>
-        </div>` : null}
+      <${CardForecast} forecast=${st.forecast} wind=${st.wind}/>
 
       <div class="card-foot">
         <span>${st.live
           ? html`<span class="live-tag">● ao vivo${st.src === "ana" ? " · ANA" : ""}</span>`
           : html`<span class="seed-tag">cache/seed</span>`}</span>
         <span class="tap-hint">toque para detalhes →</span>
+      </div>
+    </div>`;
+}
+
+/* ---------------- previsão compacta no card (todas as cidades) ----------------
+   4 dias com condição, máx/mín, chuva e vento — todos os cards têm a mesma
+   altura. Em Porto Alegre, dias de vento do quadrante sul ganham o destaque
+   de represamento (dados do st.wind). */
+function CardForecast({ forecast, wind }) {
+  if (!forecast?.length) return null;
+  const effectOf = (date) => (wind || []).find((w) => w.date === date)?.effect || null;
+  return html`
+    <div class="card-fc">
+      <span class="cf-lbl">🌤️ Previsão · 4 dias${wind?.length ? html` <span class="cf-wind-note">· vento sul = represa</span>` : null}</span>
+      <div class="cf-days">
+        ${forecast.slice(0, 4).map((d) => {
+          const w = wmo(d.code);
+          const ef = effectOf(d.date);
+          return html`
+            <div class=${`cf-day ${ef ? `ef-${ef}` : ""}`} key=${d.date}
+                 title=${`${w.label} · ${fmt(d.tmin, 0)}–${fmt(d.tmax, 0)}°C · ${fmt(d.rain, 1)} mm · vento ${fmt(d.wspd, 0)} km/h`}>
+              <span class="cf-date">${weekdayLabel(d.date, true)}</span>
+              <span class="cf-ico">${w.icon}</span>
+              <span class="cf-temp">${fmt(d.tmax, 0)}°<i>/${fmt(d.tmin, 0)}°</i></span>
+              <span class="cf-rain">${d.rain > 0 ? `💧${fmt(d.rain, 0)}` : "—"}</span>
+              <span class="cf-wind">
+                ${d.wdeg != null ? html`<i class="cf-arrow" style=${{ transform: `rotate(${(d.wdeg + 180) % 360}deg)` }}>↑</i>` : null}
+                ${fmt(d.wspd, 0)}
+              </span>
+            </div>`;
+        })}
       </div>
     </div>`;
 }

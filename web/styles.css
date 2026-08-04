@@ -716,3 +716,24 @@ body::after{content:"";position:fixed;inset:-22%;z-index:0;pointer-events:none;
 .time-axis{display:flex;justify-content:space-between;margin-top:5px;
   font-size:10px;color:var(--dim);font-variant-numeric:tabular-nums}
 .fcast-today{color:var(--dim);font-size:11px;margin-top:6px}
+
+/* ---------- previsão compacta nos cards ---------- */
+.card-fc{margin:10px 0 2px}
+.cf-lbl{display:block;font-size:9.5px;font-weight:800;letter-spacing:.8px;text-transform:uppercase;
+  color:var(--dim);margin-bottom:6px}
+.cf-wind-note{color:var(--dim);font-weight:600;text-transform:none;letter-spacing:.2px}
+.cf-days{display:grid;grid-template-columns:repeat(4,1fr);gap:5px}
+.cf-day{display:flex;flex-direction:column;align-items:center;gap:1px;padding:6px 2px;
+  border-radius:8px;border:1px solid var(--border);background:rgba(255,255,255,.02)}
+.cf-date{font-size:9px;color:var(--muted);text-transform:capitalize}
+.cf-ico{font-size:15px;line-height:1.2}
+.cf-temp{font-size:10.5px;font-weight:700}
+.cf-temp i{font-style:normal;color:var(--muted);font-weight:500;font-size:9.5px}
+.cf-rain{font-size:9px;color:var(--accent)}
+.cf-wind{font-size:9px;color:var(--muted);display:flex;align-items:center;gap:2px}
+.cf-arrow{font-style:normal;display:inline-block;font-size:9px;color:var(--txt)}
+/* dias com represamento (só POA tem esse dado) */
+.cf-day.ef-represa{border-color:rgba(239,68,68,.55);background:rgba(239,68,68,.09)}
+.cf-day.ef-represa .cf-date{color:#f87171;font-weight:800}
+.cf-day.ef-represa-fraco{border-color:rgba(234,179,8,.45);background:rgba(234,179,8,.07)}
+.cf-day.ef-represa-fraco .cf-date{color:#facc15;font-weight:700}
