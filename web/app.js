@@ -216,8 +216,8 @@ function StationCard({ st, points, riverColor, onOpen, index }) {
 
       ${st.alerts?.length ? html`
         <div class="card-inmet" style=${{ "--ac": st.alerts[0].cor }} title=${`Aviso INMET vigente até ${fmtAvisoFim(st.alerts[0].fim)}`}>
-          ⚠️ INMET: <b>${st.alerts[0].evento}</b> · ${st.alerts[0].severidade}
-          ${st.alerts.length > 1 ? html`<span class="ci-more">+${st.alerts.length - 1}</span>` : null}
+          ${alertIcon(st.alerts[0].evento)} <b>${st.alerts[0].evento}</b> · ${st.alerts[0].severidade}
+          <span class="ci-src">INMET${st.alerts.length > 1 ? ` +${st.alerts.length - 1}` : ""}</span>
         </div>` : null}
 
       <div class="metric-row">
@@ -248,18 +248,18 @@ function StationCard({ st, points, riverColor, onOpen, index }) {
       </div>
 
       <div class="facts">
-        <div class="fact"><span class="k">Recorde histórico</span>
+        <div class="fact"><span class="k">🏆 Recorde histórico</span>
           <span class="v">${st.record ? `${fmt(st.record.level)} m` : "—"}</span>
           <span class="v small">${st.record?.date ? fmtDate(st.record.date) : ""}</span>
         </div>
-        <div class="fact"><span class="k">Chuva hoje</span>
-          <span class="v"><span class="rain-ico">💧</span> ${fmt(st.rain?.today, 1)} mm</span>
+        <div class="fact"><span class="k">💧 Chuva hoje</span>
+          <span class="v">${fmt(st.rain?.today, 1)} mm</span>
           <span class="v small">prev. ${fmt(st.rain?.forecast, 1)} mm</span>
         </div>
-        <div class="fact"><span class="k">Previsão 7 dias</span>
+        <div class="fact"><span class="k">🌧️ Previsão 7 dias</span>
           <span class="v">${fmt(st.rain?.week, 1)} mm</span>
         </div>
-        <div class="fact"><span class="k">Leitura</span>
+        <div class="fact"><span class="k">🕒 Leitura</span>
           <span class="v small">${fmtTime(st.ts)}</span>
         </div>
       </div>
@@ -360,6 +360,21 @@ const fmtAvisoFim = (s) => {
 const sevClass = (s) =>
   /grande/i.test(s || "") ? "sev-max" : /^perigo$/i.test(String(s || "").trim()) ? "sev-high" : "sev-warn";
 
+/* Ícone pelo tipo de evento do aviso (a descrição do INMET é padronizada). */
+function alertIcon(evento) {
+  const e = String(evento || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  if (e.includes("tempestade")) return "⛈️";
+  if (e.includes("chuva") || e.includes("acumulado")) return "🌧️";
+  if (e.includes("vendaval") || e.includes("vento")) return "💨";
+  if (e.includes("granizo")) return "🌨️";
+  if (e.includes("calor")) return "🌡️";
+  if (e.includes("frio") || e.includes("geada") || e.includes("temperatura")) return "❄️";
+  if (e.includes("umidade") || e.includes("seca")) return "🏜️";
+  if (e.includes("inunda") || e.includes("alagamento") || e.includes("cheia")) return "🌊";
+  if (e.includes("nevoeiro")) return "🌫️";
+  return "⚠️";
+}
+
 function AlertStrip({ alerts, stations }) {
   const [openId, setOpenId] = useState(null);
   if (!alerts?.list?.length) return null;
@@ -383,7 +398,9 @@ function AlertStrip({ alerts, stations }) {
             }}>
               <div class="inmet-row1">
                 <span class="inmet-dot"></span>
+                <span class="inmet-ico">${alertIcon(a.evento)}</span>
                 <b>${a.evento}</b>
+                <span class="inmet-tag">INMET</span>
                 <span class="inmet-sev">${a.severidade}</span>
                 <span class="inmet-arrow">${open ? "▴" : "▾"}</span>
               </div>
@@ -559,24 +576,24 @@ function Modal({ st, points, riverColor, onClose }) {
         </div>
 
         <div class="stat-grid">
-          ${stat("Nível atual", `${fmt(st.level)} m`, { color: stColor })}
-          ${stat("Cota de inundação", `${fmt(st.flood)} m`)}
-          ${stat("Margem p/ transbordo",
+          ${stat("🌊 Nível atual", `${fmt(st.level)} m`, { color: stColor })}
+          ${stat("🚨 Cota de inundação", `${fmt(st.flood)} m`)}
+          ${stat("📏 Margem p/ transbordo",
             st.marginToFlood != null ? `${st.marginToFlood > 0 ? fmt(st.marginToFlood) : "+" + fmt(-st.marginToFlood)} m` : "—",
             { color: st.marginToFlood != null && st.marginToFlood <= 0 ? "#f87171" : "#4ade80",
               sub: st.marginToFlood != null && st.marginToFlood <= 0 ? "acima da cota" : "até transbordar" })}
-          ${stat("Tendência", `${rate > 0 ? "+" : ""}${fmt(rate, 1)} cm/h`,
+          ${stat(`${rate > 0.2 ? "📈" : rate < -0.2 ? "📉" : "➖"} Tendência`, `${rate > 0 ? "+" : ""}${fmt(rate, 1)} cm/h`,
             { color: rate > 0.2 ? "#fb7185" : rate < -0.2 ? "#38bdf8" : null })}
-          ${stat("Variação no período", deltaSeries != null ? `${deltaSeries >= 0 ? "+" : ""}${fmt(deltaSeries)} m` : "—",
+          ${stat("📊 Variação no período", deltaSeries != null ? `${deltaSeries >= 0 ? "+" : ""}${fmt(deltaSeries)} m` : "—",
             { sub: `${data.length} leituras` })}
-          ${stat("Mín / Máx (série)", `${fmt(minV)} / ${fmt(maxV)} m`)}
-          ${stat("Recorde histórico", st.record ? `${fmt(st.record.level)} m` : "—",
+          ${stat("↕️ Mín / Máx (série)", `${fmt(minV)} / ${fmt(maxV)} m`)}
+          ${stat("🏆 Recorde histórico", st.record ? `${fmt(st.record.level)} m` : "—",
             { sub: st.record?.date ? fmtDate(st.record.date) : "" })}
-          ${stat("Ocupação da cota", `${fmt(pct, 0)} %`, { color: stColor })}
-          ${stat("Chuva hoje", `${fmt(st.rain?.today, 1)} mm`, { sub: `prev. ${fmt(st.rain?.forecast, 1)} mm` })}
-          ${stat("Chuva 7 dias", `${fmt(st.rain?.week, 1)} mm`)}
-          ${stat("Última leitura", fmtTime(st.ts), { sub: st.live ? "● ao vivo" : "cache/seed" })}
-          ${stat("Situação", STATUS_LABEL[st.status], { color: stColor })}
+          ${stat("🌡️ Ocupação da cota", `${fmt(pct, 0)} %`, { color: stColor })}
+          ${stat("💧 Chuva hoje", `${fmt(st.rain?.today, 1)} mm`, { sub: `prev. ${fmt(st.rain?.forecast, 1)} mm` })}
+          ${stat("🌧️ Chuva 7 dias", `${fmt(st.rain?.week, 1)} mm`)}
+          ${stat("🕒 Última leitura", fmtTime(st.ts), { sub: st.live ? "● ao vivo" : "cache/seed" })}
+          ${stat("🚦 Situação", STATUS_LABEL[st.status], { color: stColor })}
         </div>
 
         ${st.alerts?.length ? html`
@@ -584,7 +601,7 @@ function Modal({ st, points, riverColor, onClose }) {
             <h3>⚠️ Avisos meteorológicos vigentes (INMET)</h3>
             ${st.alerts.map((a) => html`
               <div class="m-inmet-item" key=${a.id} style=${{ "--ac": a.cor }}>
-                <span class="inmet-dot"></span><b>${a.evento}</b> · ${a.severidade} · até ${fmtAvisoFim(a.fim)}
+                <span class="inmet-dot"></span>${alertIcon(a.evento)} <b>${a.evento}</b> · ${a.severidade} · até ${fmtAvisoFim(a.fim)}
               </div>`)}
             <p class="inmet-src">Detalhes, riscos e instruções na faixa de avisos do topo do painel.</p>
           </div>` : null}
@@ -609,6 +626,17 @@ function Modal({ st, points, riverColor, onClose }) {
    na ordem de montante → jusante, com setas indicando o sentido da
    correnteza. Tudo converge para o Guaíba, em Porto Alegre. */
 const GUAIBA = "portoalegre";
+
+/* Cor de um rio no mapa = pior situação entre as estações dele (semáforo,
+   igual aos cards) — a linha vermelha grita onde a cheia está. */
+function riverGravityColor(order, stations) {
+  let worst = null;
+  for (const sl of order) {
+    const st = stations.find((s) => s.slug === sl);
+    if (st && (worst == null || STATUS_ORDER[st.status] < STATUS_ORDER[worst])) worst = st.status;
+  }
+  return worst ? STATUS_COLOR[worst] : "#38bdf8";
+}
 // Ordem de jusante (o último ponto está mais próximo da foz/Guaíba).
 const FLOWS = [
   { river: "Rio Jacuí",     order: ["donafrancisca", "cachoeiradosul", "riopardo"] },
@@ -697,7 +725,7 @@ function MapView({ stations, rivers, onOpen }) {
     if (!nodes.length) return null;
     const full = g && f.order[f.order.length - 1] !== GUAIBA ? [...nodes, g] : nodes;
     if (full.length < 2) return null;
-    const color = rivers[f.river] || "#38bdf8";
+    const color = riverGravityColor(f.order, stations);
     const segs = curveSegments(full);
     const d = pathFromSegments(segs);
     return html`<g key=${f.river}>
@@ -754,6 +782,7 @@ function MapView({ stations, rivers, onOpen }) {
             ${["inundacao", "alerta", "atencao", "normal"].map((k) => html`
               <span key=${k} class="lg"><span class="lgdot" style=${{ background: STATUS_COLOR[k] }}></span>${STATUS_LABEL[k]}</span>`)}
             <span class="lg"><span class="lgarrow">▸</span>sentido do rio</span>
+            <span class="lg"><span class="lg-line-sample"></span>cor da linha = pior situação no rio</span>
             <span class="lg"><span style=${{ color: "#fb7185" }}>▲</span><span style=${{ color: "#38bdf8" }}>▼</span>nível subindo/descendo</span>
           </div>
         </div>
@@ -807,7 +836,7 @@ function MiniMap({ stations, rivers }) {
         const full = g && f.order[f.order.length - 1] !== GUAIBA ? [...nodes, g] : nodes;
         if (full.length < 2) return null;
         return html`<path key=${f.river} class="mini-river" d=${pathFromSegments(curveSegments(full))}
-          stroke=${rivers[f.river] || "#38bdf8"}/>`;
+          stroke=${riverGravityColor(f.order, stations)}/>`;
       })}
       ${stations.filter((s) => coord[s.slug]).map((s) => {
         const c = coord[s.slug], col = STATUS_COLOR[s.status];
