@@ -34,10 +34,17 @@ function parseNumber(raw) {
   return Number.isFinite(v) ? v : null;
 }
 
-function statusFor(level, flood) {
+// Status: usa as COTAS OFICIAIS da régua (SACE/Defesa Civil) quando definidas
+// em stations.js (cotas: { atencao, alerta }); sem elas, heurística percentual.
+function statusFor(level, flood, cotas) {
   if (level == null || !flood) return "normal";
+  if (level >= flood) return "inundacao";
+  if (cotas?.alerta != null || cotas?.atencao != null) {
+    if (cotas.alerta != null && level >= cotas.alerta) return "alerta";
+    if (cotas.atencao != null && level >= cotas.atencao) return "atencao";
+    return "normal";
+  }
   const r = level / flood;
-  if (r >= 1) return "inundacao";
   if (r >= 0.9) return "alerta";
   if (r >= 0.75) return "atencao";
   return "normal";
@@ -174,7 +181,7 @@ export async function crawlStation(station) {
   const base = `${BASE_URL}/${station.slug}`;
 
   let level = null, rate = null, rain = null, wind = null, forecast = null,
-    floodcast = null, measured = null, ok = false, viaAna = false;
+    floodcast = null, measured = null, ok = false, viaAna = false, gauge = null;
   try {
     // 0) histórico raso? Popula o passado com a série longa do nivelguaiba
     //    (só aqui ele ainda é útil como fonte primária — dados retroativos).
@@ -192,6 +199,7 @@ export async function crawlStation(station) {
       level = anaSeries.points[anaSeries.points.length - 1].v;
       ok = true;
       viaAna = true;
+      gauge = { code: anaSeries.code, name: anaSeries.name || null };
     } else {
       // CONTINGÊNCIA: nivelguaiba.com.br (se ele bloquear, só perdemos isto)
       let series = await fetchJson(`${base}.7days.json`).catch(() => null);
@@ -234,6 +242,10 @@ export async function crawlStation(station) {
   const flood = pick(prev.flood, seed.flood, station.flood);
   const lvl = pick(level, prev.level, seed.level);
 
+  // horário da ÚLTIMA LEITURA real da régua (≠ ts, que é o horário da coleta)
+  const hist = store.getHistory(station.slug);
+  const readingAt = hist.length ? hist[hist.length - 1].t : prev.readingAt || null;
+
   const snapshot = {
     slug: station.slug,
     city: station.city,
@@ -242,7 +254,7 @@ export async function crawlStation(station) {
     lng: station.lng,
     level: lvl,
     flood,
-    status: statusFor(lvl, flood),
+    status: statusFor(lvl, flood, station.cotas),
     // sanitiza também os fallbacks: um valor absurdo já gravado num ciclo
     // anterior não pode "grudar" no snapshot para sempre
     rate: pick(rate, saneRate(prev.rate), saneRate(seed.rate), 0),
@@ -261,9 +273,12 @@ export async function crawlStation(station) {
     alerts: weather.alertsFor(station.slug),
     marginToFlood: flood != null && lvl != null ? +(flood - lvl).toFixed(2) : null,
     ts: nowIso(),
+    readingAt,
     live: ok,
     // procedência do nível deste ciclo: ana (oficial) | nivelguaiba | cache
     src: viaAna ? "ana" : ok ? "nivelguaiba" : prev.src || "cache",
+    // régua telemétrica de origem, quando a leitura veio direto da ANA
+    gauge: gauge || prev.gauge || null,
     url: base,
   };
 

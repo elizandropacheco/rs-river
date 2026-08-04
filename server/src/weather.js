@@ -313,6 +313,12 @@ async function loadCemadenNetwork() {
   return cemadenAll.stations;
 }
 
+// Rede completa para a camada de chuva do mapa (lat/lng/chuva 24 h por ponto).
+export async function cemadenNetwork() {
+  if (!cemadenEnabled()) return null;
+  try { return await loadCemadenNetwork(); } catch { return cemadenAll.stations; }
+}
+
 export async function fetchCemadenRain(station) {
   if (!cemadenEnabled()) return null;
   const hit = cemadenCache.get(station.slug);

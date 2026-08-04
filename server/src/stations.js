@@ -1,6 +1,10 @@
 // Metadados fixos das estações monitoradas na Bacia do Guaíba.
 // slug = caminho usado em https://nivelguaiba.com.br/<slug>
 // ibge = código IBGE do município (usado nas consultas ao CEMADEN)
+// cotas (opcional) = cotas OFICIAIS de atenção/alerta da régua, em metros
+//   (ex.: cotas: { atencao: 2.5, alerta: 3.2 }). Quando definidas, o status
+//   usa esses valores absolutos em vez da heurística 75%/90% da cota de
+//   inundação. Preencha conforme o SACE/Defesa Civil publicar por estação.
 export const STATIONS = [
   // wind: estação sujeita ao represamento por vento sul (sistema Guaíba /
   // Lagoa dos Patos). Só faz sentido no Guaíba — rios de encosta não sofrem isso.

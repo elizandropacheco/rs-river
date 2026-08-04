@@ -13,6 +13,7 @@ import { SEED } from "./seed.js";
 import * as store from "./store.js";
 import * as settings from "./settings.js";
 import * as weather from "./weather.js";
+import * as ana from "./ana.js";
 import { crawlAll } from "./crawler.js";
 import { WSHub } from "./ws.js";
 
@@ -178,6 +179,21 @@ const server = http.createServer((req, res) => {
   }
   // Avisos meteorológicos vigentes no RS (fonte: API oficial do INMET)
   if (url === "/api/alerts") return sendJson(res, 200, weather.getAlerts());
+
+  // Camada de chuva do mapa: pluviômetros CEMADEN (24 h) — vazio sem credencial
+  if (url === "/api/rain-gauges") {
+    return void weather.cemadenNetwork().then((list) =>
+      sendJson(res, 200, {
+        enabled: weather.cemadenEnabled(),
+        gauges: (list || []).map((p) => ({ lat: p.lat, lng: p.lng, city: p.city, rain: +p.rain.toFixed(1) })),
+      }));
+  }
+
+  // Réguas telemétricas extras da bacia (ANA) — densidade no mapa
+  if (url === "/api/gauges") {
+    ana.refreshExtraGauges().catch(() => {}); // atualiza em segundo plano
+    return sendJson(res, 200, ana.getExtraGauges());
+  }
 
   // Índice de frames do radar de chuva (RainViewer) — tiles vão direto ao CDN
   if (url === "/api/radar/frames") {

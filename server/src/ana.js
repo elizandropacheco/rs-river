@@ -58,11 +58,21 @@ async function restToken() {
 
 /* ---------------- resolução dos códigos de estação ---------------- */
 let mapping = null; // { slug: { code, name, dist } }
+let extras = null; // réguas telemétricas da bacia ALÉM das 14 cidades
+
+// Caixa que envolve a Bacia do Guaíba (com folga): réguas do inventário dentro
+// dela viram pontos extras no mapa — mais densidade, mais realidade.
+const BASIN_BBOX = { latMin: -30.8, latMax: -28.3, lngMin: -54.2, lngMax: -50.0 };
 
 function loadMapping() {
   if (mapping) return mapping;
   try {
-    if (fs.existsSync(MAP_FILE)) mapping = JSON.parse(fs.readFileSync(MAP_FILE, "utf8"));
+    if (fs.existsSync(MAP_FILE)) {
+      const raw = JSON.parse(fs.readFileSync(MAP_FILE, "utf8"));
+      // formato novo {mapping, extras}; formato antigo era o mapping direto
+      if (raw.mapping) { mapping = raw.mapping; extras = raw.extras || null; }
+      else mapping = raw;
+    }
   } catch {}
   return mapping;
 }
@@ -70,7 +80,7 @@ function loadMapping() {
 function persistMapping() {
   try {
     fs.mkdirSync(DATA_DIR, { recursive: true });
-    fs.writeFileSync(MAP_FILE, JSON.stringify(mapping, null, 2));
+    fs.writeFileSync(MAP_FILE, JSON.stringify({ mapping, extras }, null, 2));
   } catch {}
 }
 
@@ -137,9 +147,56 @@ async function doResolve() {
   if (!list || !list.length) list = await inventoryViaSoap().catch((e) => { console.warn("[ana] inventário SOAP:", e.message); return null; });
   if (!list || !list.length) return null;
   mapping = nearestFor(list);
+  const chosen = new Set(Object.values(mapping).map((m) => m.code));
+  extras = list.filter((e) =>
+    !chosen.has(e.code) &&
+    Number.isFinite(e.lat) && Number.isFinite(e.lng) &&
+    e.lat >= BASIN_BBOX.latMin && e.lat <= BASIN_BBOX.latMax &&
+    e.lng >= BASIN_BBOX.lngMin && e.lng <= BASIN_BBOX.lngMax,
+  ).slice(0, 60).map((e) => ({ code: e.code, name: e.name, lat: e.lat, lng: e.lng }));
   persistMapping();
-  console.log(`[ana] ${Object.keys(mapping).length}/14 estações telemétricas resolvidas por proximidade`);
+  console.log(`[ana] ${Object.keys(mapping).length}/14 estações resolvidas + ${extras.length} réguas extras na bacia`);
   return mapping;
+}
+
+/* ---------------- réguas extras da bacia (densidade no mapa) ----------------
+   Nível atual das réguas telemétricas da região além das 14 cidades. Só
+   funciona quando a ANA está acessível — o mapa fica mais denso sozinho. */
+let extrasData = { at: 0, list: [] };
+let extrasRefreshing = null;
+
+export function getExtraGauges() {
+  return { updatedAt: extrasData.at ? new Date(extrasData.at).toISOString() : null, gauges: extrasData.list };
+}
+
+export async function refreshExtraGauges() {
+  if (extrasRefreshing) return extrasRefreshing;
+  if (Date.now() - extrasData.at < 30 * 60 * 1000) return extrasData.list;
+  extrasRefreshing = (async () => {
+    await resolveStations().catch(() => null);
+    if (!extras?.length) return extrasData.list;
+    const out = [];
+    const queue = [...extras];
+    const workers = Array.from({ length: 4 }, async () => {
+      while (queue.length) {
+        const e = queue.shift();
+        let pts = null;
+        if (hasRest()) pts = await seriesViaRest(e.code).catch(() => null);
+        if (!pts || !pts.length) pts = await seriesViaSoap(e.code).catch(() => null);
+        const last = pts?.[pts.length - 1];
+        if (last) out.push({ code: e.code, name: e.name, lat: e.lat, lng: e.lng, level: last.v, t: last.t });
+      }
+    });
+    await Promise.all(workers);
+    if (out.length) {
+      extrasData = { at: Date.now(), list: out };
+      console.log(`[ana] ${out.length} réguas extras com leitura na bacia`);
+    } else {
+      extrasData.at = Date.now(); // cooldown mesmo vazio — ANA fora do ar
+    }
+    return extrasData.list;
+  })().finally(() => { extrasRefreshing = null; });
+  return extrasRefreshing;
 }
 
 /* ---------------- série de nível ---------------- */

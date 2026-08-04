@@ -150,7 +150,23 @@ function useLiveData() {
    Robusto: o <svg> preenche 100% do container (que define a altura),
    com preserveAspectRatio="none". Assim funciona igual no mini-card e
    no modal, sem estourar o layout. */
-function AreaChart({ points, color, flood, axis = false }) {
+/* Rótulos de data/hora sob um gráfico (início · meio · fim da série). */
+function TimeAxis({ points }) {
+  const pts = (points || []).filter((p) => p && p.v != null);
+  if (pts.length < 2) return null;
+  const t0 = pts[0].t, tm = pts[Math.floor(pts.length / 2)].t, t1 = pts[pts.length - 1].t;
+  const span = (Date.parse(t1) || 0) - (Date.parse(t0) || 0);
+  const f = (t) => {
+    const d = new Date(t);
+    if (isNaN(d)) return String(t).slice(5, 16);
+    return span > 3 * 864e5
+      ? d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })
+      : d.toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+  };
+  return html`<div class="time-axis"><span>${f(t0)}</span><span>${f(tm)}</span><span>${f(t1)}</span></div>`;
+}
+
+function AreaChart({ points, color, flood, axis = false, markIndex = null }) {
   const series = (points || []).filter((p) => p && p.v != null);
   const data = series.map((p) => p.v);
   if (data.length < 2) {
@@ -183,6 +199,10 @@ function AreaChart({ points, color, flood, axis = false }) {
       </defs>
       ${floodOn
         ? html`<line x1="0" x2=${W} y1=${floodY} y2=${floodY} stroke="#ef4444" stroke-width="1.2" stroke-dasharray="5 4" opacity="0.85" vector-effect="non-scaling-stroke"/>`
+        : null}
+      ${markIndex != null && markIndex >= 0 && markIndex < data.length
+        ? html`<line x1=${x(markIndex).toFixed(1)} x2=${x(markIndex).toFixed(1)} y1=${pad} y2=${H - pad}
+            stroke="#8ea3c6" stroke-width="1" stroke-dasharray="3 4" opacity="0.7" vector-effect="non-scaling-stroke"/>`
         : null}
       <path class="chart-area" d=${area} fill=${`url(#${gid})`}/>
       <path class="chart-line" pathLength="1" d=${line} fill="none" stroke=${color} stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round" vector-effect="non-scaling-stroke"/>
@@ -245,6 +265,7 @@ function StationCard({ st, points, riverColor, onOpen, index }) {
         <div class="spark-box">
           <${AreaChart} points=${sliceDays(points, 7)} color=${stColor} flood=${st.flood}/>
         </div>
+        <${TimeAxis} points=${sliceDays(points, 7)}/>
       </div>
 
       <div class="facts">
@@ -252,11 +273,11 @@ function StationCard({ st, points, riverColor, onOpen, index }) {
           <span class="v">${st.record ? `${fmt(st.record.level)} m` : "—"}</span>
           <span class="v small">${st.record?.date ? fmtDate(st.record.date) : ""}</span>
         </div>
-        <div class="fact"><span class="k">💧 Chuva hoje</span>
+        <div class="fact"><span class="k">💧 Chuva prev. hoje</span>
           <span class="v">${fmt(st.rain?.today, 1)} mm</span>
-          <span class="v small">prev. ${fmt(st.rain?.forecast, 1)} mm</span>
+          <span class="v small">Open-Meteo</span>
         </div>
-        <div class="fact"><span class="k">🌧️ Previsão 7 dias</span>
+        <div class="fact"><span class="k">🌧️ Chuva prev. 7 dias</span>
           <span class="v">${fmt(st.rain?.week, 1)} mm</span>
         </div>
         <div class="fact"><span class="k">🕒 Leitura</span>
@@ -352,6 +373,38 @@ function ForecastPanel({ forecast }) {
     </div>`;
 }
 
+/* ---------------- proveniência: de onde vem cada número ---------------- */
+function ProvenancePanel({ st, intervalMin }) {
+  const readMs = st.readingAt ? Date.parse(st.readingAt) : NaN;
+  const stale = Number.isFinite(readMs) && Date.now() - readMs > 2 * 3600e3;
+  const lvlSrc = st.src === "ana"
+    ? html`Telemetria oficial <b>ANA/SGB</b>${st.gauge ? html` — régua <b>${st.gauge.code}</b>${st.gauge.name ? ` · ${st.gauge.name}` : ""}` : null}`
+    : st.src === "nivelguaiba"
+    ? html`Consolidado via <b>nivelguaiba.com.br</b> (contingência — telemetria ANA indisponível no ciclo)`
+    : html`Cache local (última coleta válida)`;
+  const row = (icon, k, v, sub) => html`
+    <div class="prov-row">
+      <span class="prov-ico">${icon}</span>
+      <div class="prov-txt"><span class="k">${k}</span><span class="v">${v}</span>
+        ${sub ? html`<span class="sub">${sub}</span>` : null}</div>
+    </div>`;
+  return html`
+    <div class="prov-box">
+      <h3>📋 Sobre esta medição</h3>
+      ${row("🌊", "Nível do rio", lvlSrc, html`
+        última leitura ${st.readingAt ? `${fmtTime(st.readingAt)} (${relTime(st.readingAt)})` : "—"}
+        ${stale ? html` · <span class="prov-stale">⚠️ leitura antiga — estação pode estar offline</span>` : null}`)}
+      ${row("⏱", "Frequência", `painel coleta a cada ${intervalMin || 5} min · réguas telemétricas medem a cada ~15 min`)}
+      ${row("💧", "Chuva prevista", "modelo Open-Meteo no ponto da estação (previsão, não medição)")}
+      ${st.measured?.inmet ? row("🌡️", "Chuva medida (INMET)",
+        `estação automática ${st.measured.inmet.station}${st.measured.inmet.distKm != null ? ` — a ${st.measured.inmet.distKm} km` : ""}`) : null}
+      ${st.measured?.cemaden ? row("🌧️", "Pluviômetro (CEMADEN)", st.measured.cemaden.station) : null}
+      ${st.floodcast ? row("🔮", "Vazão prevista", "modelo global GloFAS/Copernicus, célula de ~5 km") : null}
+      ${row("🚨", "Cota de inundação e recorde", "referências fixas da régua (Defesa Civil/SACE · histórico local)")}
+      ${st.alerts?.length ? row("⚠️", "Avisos meteorológicos", "emitidos oficialmente pelo INMET para este município") : null}
+    </div>`;
+}
+
 /* ---------------- previsão de vazão (GloFAS/Copernicus) ----------------
    O dado PREDITIVO do painel: vazão modelada no ponto da estação, 7 dias
    passados + 30 de previsão. Nível observado diz onde o rio ESTÁ; a vazão
@@ -377,8 +430,10 @@ function FloodcastPanel({ floodcast, riverColor }) {
           — hoje ~${fmt(today.v, today.v < 10 ? 1 : 0)} ${floodcast.unit}.
         </p>` : null}
       <div class="fcast-chart">
-        <${AreaChart} points=${days} color=${riverColor}/>
+        <${AreaChart} points=${days} color=${riverColor} markIndex=${7}/>
       </div>
+      <${TimeAxis} points=${days}/>
+      <p class="fcast-today">A linha tracejada vertical marca <b>hoje</b> — antes dela, vazão observada pelo modelo; depois, previsão.</p>
       <p class="fcast-src">
         Modelo global GloFAS (Copernicus/Open-Meteo), célula de ~5 km no ponto da estação — use a
         <b>tendência</b> como sinal antecipado, não o valor absoluto como medição local.
@@ -494,6 +549,7 @@ function SatView() {
   }, []);
   const [layer, setLayer] = useState("nuvens"); // nuvens | raios
   const [mode, setMode] = useState("foto"); // foto | hd | loop (hd só p/ nuvens)
+  const [zoomRS, setZoomRS] = useState(true); // aproxima o RS (o setor da NOAA é fixo)
   const eff = layer === "raios" && mode === "hd" ? "foto" : mode;
   const src = layer === "raios"
     ? (eff === "loop" ? `/api/satelite/glmanim.gif?t=${Math.floor(bucket / 2)}` : `/api/satelite/glm.jpg?t=${bucket}`)
@@ -518,10 +574,14 @@ function SatView() {
             ${layer === "nuvens" ? html`<button class=${eff === "hd" ? "on" : ""} onClick=${() => { setMode("hd"); track("satellite_hd"); }}>HD</button>` : null}
             <button class=${eff === "loop" ? "on" : ""} onClick=${() => { setMode("loop"); track("satellite_anim", { layer }); }}>▶ Loop</button>
           </div>
+          <div class="sat-tools seg">
+            <button class=${zoomRS ? "on" : ""} onClick=${() => setZoomRS(true)}>🔍 RS</button>
+            <button class=${zoomRS ? "" : "on"} onClick=${() => setZoomRS(false)}>🌎 Região</button>
+          </div>
         </div>
       </div>
       ${eff === "loop" ? html`<p class="sat-note">Loop das últimas horas (~14 MB) — pode demorar alguns segundos para carregar.</p>` : null}
-      <div class="sat-canvas">
+      <div class=${`sat-canvas ${zoomRS ? "zoomed" : ""}`}>
         <img key=${layer + eff} src=${src} alt=${layer === "raios"
           ? "Densidade de raios (GOES-19 GLM) no sul da América do Sul — NOAA/NESDIS"
           : "Imagem de satélite GOES-19 GEOCOLOR do sul da América do Sul (NOAA/NESDIS)"} loading="lazy"/>
@@ -539,7 +599,9 @@ function SatView() {
    Grade fixa de tiles Web-Mercator (z=6) cobrindo o RS, animando os frames
    do radar composto: ~2 h de passado + previsão imediata. Sem biblioteca de
    mapas — a grade é estática e as cidades são projetadas por cima. */
-const RADAR_GRID = { z: 7, xs: [43, 44, 45, 46], ys: [73, 74, 75, 76] };
+// z=8 focado na Bacia do Guaíba (lon −54,8…−49,2 · lat −27,1…−31,9):
+// todas as 14 cidades no quadro, com o radar bem mais próximo.
+const RADAR_GRID = { z: 8, xs: [89, 90, 91, 92], ys: [148, 149, 150, 151] };
 const mercY = (lat) => {
   const r = (lat * Math.PI) / 180;
   return (1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2;
@@ -658,7 +720,7 @@ function WindPanel({ wind }) {
 }
 
 /* ---------------- modal ---------------- */
-function Modal({ st, points, riverColor, onClose }) {
+function Modal({ st, points, riverColor, intervalMin, onClose }) {
   useEffect(() => {
     const h = (e) => e.key === "Escape" && onClose();
     window.addEventListener("keydown", h);
@@ -736,6 +798,7 @@ function Modal({ st, points, riverColor, onClose }) {
           <div class="modal-chart">
             <${AreaChart} points=${data} color=${stColor} flood=${st.flood} axis=${true}/>
           </div>
+          <${TimeAxis} points=${data}/>
           <div class="bc-foot">
             <span>mín ${fmt(minV)} m</span>
             <span>máx ${fmt(maxV)} m</span>
@@ -757,11 +820,13 @@ function Modal({ st, points, riverColor, onClose }) {
           ${stat("🏆 Recorde histórico", st.record ? `${fmt(st.record.level)} m` : "—",
             { sub: st.record?.date ? fmtDate(st.record.date) : "" })}
           ${stat("🌡️ Ocupação da cota", `${fmt(pct, 0)} %`, { color: stColor })}
-          ${stat("💧 Chuva hoje", `${fmt(st.rain?.today, 1)} mm`, { sub: `prev. ${fmt(st.rain?.forecast, 1)} mm` })}
-          ${stat("🌧️ Chuva 7 dias", `${fmt(st.rain?.week, 1)} mm`)}
+          ${stat("💧 Chuva prev. hoje", `${fmt(st.rain?.today, 1)} mm`, { sub: "Open-Meteo" })}
+          ${stat("🌧️ Chuva prev. 7 dias", `${fmt(st.rain?.week, 1)} mm`)}
           ${stat("🕒 Última leitura", fmtTime(st.ts), { sub: st.live ? "● ao vivo" : "cache/seed" })}
           ${stat("🚦 Situação", STATUS_LABEL[st.status], { color: stColor })}
         </div>
+
+        <${ProvenancePanel} st=${st} intervalMin=${intervalMin}/>
 
         ${st.alerts?.length ? html`
           <div class="m-inmet">
@@ -782,7 +847,6 @@ function Modal({ st, points, riverColor, onClose }) {
         ${st.wind?.length ? html`<${WindPanel} wind=${st.wind}/>` : null}
 
         <div class="m-links">
-          <a class="srclink" href=${st.url} target="_blank" rel="noopener">🔗 Ver fonte no nivelguaiba.com.br</a>
           ${st.lat != null && st.lng != null
             ? html`<a class="srclink" href=${`https://www.google.com/maps?q=${st.lat},${st.lng}`} target="_blank" rel="noopener">📍 Ver no mapa</a>`
             : null}
@@ -798,8 +862,7 @@ function Modal({ st, points, riverColor, onClose }) {
    correnteza. Tudo converge para o Guaíba, em Porto Alegre. */
 const GUAIBA = "portoalegre";
 
-/* Cor de um rio no mapa = pior situação entre as estações dele (semáforo,
-   igual aos cards) — a linha vermelha grita onde a cheia está. */
+/* Cor de um rio = pior situação entre as estações dele (semáforo dos cards). */
 function riverGravityColor(order, stations) {
   let worst = null;
   for (const sl of order) {
@@ -807,6 +870,54 @@ function riverGravityColor(order, stations) {
     if (st && (worst == null || STATUS_ORDER[st.status] < STATUS_ORDER[worst])) worst = st.status;
   }
   return worst ? STATUS_COLOR[worst] : "#38bdf8";
+}
+
+/* Cor de um TRECHO = pior situação entre as duas estações das pontas —
+   resolução por segmento em vez de pintar o rio inteiro. */
+function segGravityColor(slugA, slugB, stations) {
+  let worst = null;
+  for (const sl of [slugA, slugB]) {
+    const st = stations.find((s) => s.slug === sl);
+    if (st && (worst == null || STATUS_ORDER[st.status] < STATUS_ORDER[worst])) worst = st.status;
+  }
+  return worst ? STATUS_COLOR[worst] : "#38bdf8";
+}
+
+/* Waypoints geográficos reais (cidades/foz ao longo do curso) inseridos entre
+   as estações — aproximam o traçado desenhado do rio de verdade. Chave:
+   "slugMontante|slugJusante" ("…|portoalegre" é o trecho final até o delta). */
+const RIVER_VIA = {
+  // Taquari deságua no Jacuí junto a Taquari/Triunfo e segue ao delta
+  "bomretirodosul|portoalegre": [[-29.80, -51.86], [-29.94, -51.72], [-29.96, -51.45]],
+  // Jacuí passa por São Jerônimo/Triunfo antes do delta
+  "riopardo|portoalegre": [[-29.96, -51.74], [-29.95, -51.42]],
+  // Caí desce por Montenegro e desemboca perto de Nova Santa Rita
+  "saosebastiaodocai|portoalegre": [[-29.69, -51.46], [-29.87, -51.33]],
+  // Sinos passa por Campo Bom/Novo Hamburgo antes de São Leopoldo…
+  "taquara|saoleopoldo": [[-29.68, -50.98], [-29.72, -51.10]],
+  // …e segue por Sapucaia/Esteio até o delta
+  "saoleopoldo|portoalegre": [[-29.83, -51.15], [-29.93, -51.25]],
+  // Gravataí atravessa Cachoeirinha rumo ao Guaíba
+  "gravatai|portoalegre": [[-29.95, -51.10]],
+};
+
+/* Monta os nós do rio (estações + waypoints projetados) e a cor de cada
+   segmento da curva (waypoints herdam a cor do trecho estação→estação). */
+function buildRiverNodes(f, coord, g, stations) {
+  const stops = f.order.map((sl) => ({ sl, p: coord[sl] })).filter((x) => x.p);
+  if (g && f.order[f.order.length - 1] !== GUAIBA) stops.push({ sl: GUAIBA, p: g });
+  if (stops.length < 2) return null;
+  const pts = [];
+  const segColors = []; // 1 cor por segmento da curva (inclui sub-trechos de waypoint)
+  for (let i = 0; i < stops.length; i++) {
+    pts.push(stops[i].p);
+    if (i === stops.length - 1) break;
+    const vias = (RIVER_VIA[`${stops[i].sl}|${stops[i + 1].sl}`] || []).map(([la, ln]) => projRS(la, ln));
+    const color = segGravityColor(stops[i].sl, stops[i + 1].sl, stations);
+    for (const vp of vias) pts.push(vp);
+    for (let k = 0; k <= vias.length; k++) segColors.push(color);
+  }
+  return { pts, segColors };
 }
 // Ordem de jusante (o último ponto está mais próximo da foz/Guaíba).
 const FLOWS = [
@@ -877,6 +988,18 @@ function MapView({ stations, rivers, onOpen }) {
   // janela sobre esse mapa: enquadra a bacia + o litoral leste, mantendo os
   // pontos bem espaçados (mostrar o estado inteiro amontoaria tudo).
   const [zoom, setZoom] = useState("bacia");
+  // Camadas extras: pluviômetros CEMADEN (chuva 24 h) e réguas ANA da bacia
+  const [rainOn, setRainOn] = useState(true);
+  const [gaugesOn, setGaugesOn] = useState(true);
+  const [rainGauges, setRainGauges] = useState([]);
+  const [extraGauges, setExtraGauges] = useState([]);
+  useEffect(() => {
+    fetch("/api/rain-gauges").then((r) => r.json())
+      .then((d) => setRainGauges(d?.enabled ? d.gauges || [] : [])).catch(() => {});
+    fetch("/api/gauges").then((r) => r.json())
+      .then((d) => setExtraGauges(d?.gauges || [])).catch(() => {});
+  }, []);
+
   const coord = useMemo(() => {
     const c = {};
     for (const s of stations) if (s.lat != null && s.lng != null) c[s.slug] = projRS(s.lat, s.lng);
@@ -892,20 +1015,20 @@ function MapView({ stations, rivers, onOpen }) {
   const g = coord[GUAIBA];
 
   const riverEls = FLOWS.map((f) => {
-    const nodes = f.order.map((sl) => coord[sl]).filter(Boolean);
-    if (!nodes.length) return null;
-    const full = g && f.order[f.order.length - 1] !== GUAIBA ? [...nodes, g] : nodes;
-    if (full.length < 2) return null;
-    const color = riverGravityColor(f.order, stations);
-    const segs = curveSegments(full);
-    const d = pathFromSegments(segs);
+    const built = buildRiverNodes(f, coord, g, stations);
+    if (!built) return null;
+    const segs = curveSegments(built.pts);
+    const dFull = pathFromSegments(segs);
     return html`<g key=${f.river}>
-      <path class="river-path" d=${d} stroke=${color}/>
-      <path class="river-flow" d=${d} style=${{ "--fw": (2.2 * sc).toFixed(2) }}/>
+      ${segs.map((s, i) => {
+        const dSeg = `M${s.p1.x.toFixed(1)},${s.p1.y.toFixed(1)} C${s.c1.x.toFixed(1)},${s.c1.y.toFixed(1)} ${s.c2.x.toFixed(1)},${s.c2.y.toFixed(1)} ${s.p2.x.toFixed(1)},${s.p2.y.toFixed(1)}`;
+        return html`<path key=${`s${i}`} class="river-path" d=${dSeg} stroke=${built.segColors[i] || "#38bdf8"}/>`;
+      })}
+      <path class="river-flow" d=${dFull} style=${{ "--fw": (2.2 * sc).toFixed(2) }}/>
       ${segs.map((s, i) => {
         if (Math.hypot(s.p2.x - s.p1.x, s.p2.y - s.p1.y) < 26 * sc) return null; // segmento curto
         const a = bezAt(s, 0.5);
-        return html`<path key=${i} class="flow-arrow" d="M-6,-5 L7,0 L-6,5 Z" fill=${color}
+        return html`<path key=${i} class="flow-arrow" d="M-6,-5 L7,0 L-6,5 Z" fill=${built.segColors[i] || "#38bdf8"}
           transform=${`translate(${a.x.toFixed(1)} ${a.y.toFixed(1)}) rotate(${a.ang.toFixed(1)}) scale(${sc.toFixed(2)})`}/>`;
       })}
     </g>`;
@@ -949,11 +1072,20 @@ function MapView({ stations, rivers, onOpen }) {
             <button class=${zoom === "bacia" ? "on" : ""} onClick=${() => setZoom("bacia")}>🔍 Bacia</button>
             <button class=${zoom === "rs" ? "on" : ""} onClick=${() => setZoom("rs")}>🗺️ RS inteiro</button>
           </div>
+          ${rainGauges.length || extraGauges.length ? html`
+            <div class="map-zoom">
+              ${rainGauges.length ? html`
+                <button class=${rainOn ? "on" : ""} onClick=${() => { setRainOn(!rainOn); track("map_layer_rain", { on: !rainOn }); }}>🌧️ Chuva 24 h</button>` : null}
+              ${extraGauges.length ? html`
+                <button class=${gaugesOn ? "on" : ""} onClick=${() => { setGaugesOn(!gaugesOn); track("map_layer_gauges", { on: !gaugesOn }); }}>➕ Réguas ANA</button>` : null}
+            </div>` : null}
           <div class="map-legend">
             ${["inundacao", "alerta", "atencao", "normal"].map((k) => html`
               <span key=${k} class="lg"><span class="lgdot" style=${{ background: STATUS_COLOR[k] }}></span>${STATUS_LABEL[k]}</span>`)}
             <span class="lg"><span class="lgarrow">▸</span>sentido do rio</span>
-            <span class="lg"><span class="lg-line-sample"></span>cor da linha = pior situação no rio</span>
+            <span class="lg"><span class="lg-line-sample"></span>cor do trecho = pior situação entre as duas estações</span>
+            ${rainOn && rainGauges.length ? html`<span class="lg"><span class="lgdot" style=${{ background: "#38bdf8", opacity: .5 }}></span>chuva 24 h (CEMADEN)</span>` : null}
+            ${gaugesOn && extraGauges.length ? html`<span class="lg"><span class="lgdot" style=${{ background: "#cbd5e1" }}></span>réguas ANA extras</span>` : null}
             <span class="lg"><span style=${{ color: "#fb7185" }}>▲</span><span style=${{ color: "#38bdf8" }}>▼</span>nível subindo/descendo</span>
           </div>
         </div>
@@ -977,6 +1109,19 @@ function MapView({ stations, rivers, onOpen }) {
               transform=${`translate(${g.x} ${Y0 + VH - 90}) rotate(90)`}/>
             <text class="water-lbl" x=${g.x} y=${Y0 + VH - 64} text-anchor="middle">Delta do Jacuí · Lago Guaíba → Lagoa dos Patos → Oceano Atlântico</text>` : null}
           ${riverEls}
+          ${rainOn ? rainGauges.filter((p) => p.rain >= 0.2).map((p, i) => {
+            const c = projRS(p.lat, p.lng);
+            const r = (2.5 + Math.min(9, Math.sqrt(p.rain) * 2.2)) * sc;
+            return html`<circle key=${`rg${i}`} class="rain-gauge" cx=${c.x.toFixed(1)} cy=${c.y.toFixed(1)} r=${r.toFixed(1)}>
+              <title>🌧️ ${p.city}: ${fmt(p.rain, 1)} mm nas últimas 24 h (pluviômetro CEMADEN)</title>
+            </circle>`;
+          }) : null}
+          ${gaugesOn ? extraGauges.map((e, i) => {
+            const c = projRS(e.lat, e.lng);
+            return html`<circle key=${`xg${i}`} class="extra-gauge" cx=${c.x.toFixed(1)} cy=${c.y.toFixed(1)} r=${(2.6 * sc).toFixed(1)}>
+              <title>📏 ${e.name || e.code}: ${fmt(e.level)} m (régua telemétrica ANA)</title>
+            </circle>`;
+          }) : null}
           ${markerEls}
         </svg>
       </div>
@@ -1003,11 +1148,12 @@ function MiniMap({ stations, rivers }) {
       <path class="rs-outline" d=${RS.path}/>
       ${g ? html`<ellipse cx=${g.x} cy=${g.y} rx="120" ry="72" fill="rgba(56,189,248,.14)"/>` : null}
       ${FLOWS.map((f) => {
-        const nodes = f.order.map((sl) => coord[sl]).filter(Boolean);
-        const full = g && f.order[f.order.length - 1] !== GUAIBA ? [...nodes, g] : nodes;
-        if (full.length < 2) return null;
-        return html`<path key=${f.river} class="mini-river" d=${pathFromSegments(curveSegments(full))}
-          stroke=${riverGravityColor(f.order, stations)}/>`;
+        const built = buildRiverNodes(f, coord, g, stations);
+        if (!built) return null;
+        return curveSegments(built.pts).map((s, i) => html`
+          <path key=${`${f.river}${i}`} class="mini-river"
+            d=${`M${s.p1.x.toFixed(1)},${s.p1.y.toFixed(1)} C${s.c1.x.toFixed(1)},${s.c1.y.toFixed(1)} ${s.c2.x.toFixed(1)},${s.c2.y.toFixed(1)} ${s.p2.x.toFixed(1)},${s.p2.y.toFixed(1)}`}
+            stroke=${built.segColors[i] || "#38bdf8"}/>`);
       })}
       ${stations.filter((s) => coord[s.slug]).map((s) => {
         const c = coord[s.slug], col = STATUS_COLOR[s.status];
@@ -1248,7 +1394,8 @@ function App() {
         Um projeto <a href="https://guerreirosdohumaita.com.br" target="_blank" rel="noopener">Guerreiros do Humaitá</a> · <i>O Povo pelo Povo!</i> 💙
       </div>
 
-      ${openSt ? html`<${Modal} st=${openSt} points=${history[openSt.slug]} riverColor=${colorFor(openSt.river)} onClose=${() => setOpen(null)}/>` : null}
+      ${openSt ? html`<${Modal} st=${openSt} points=${history[openSt.slug]} riverColor=${colorFor(openSt.river)}
+        intervalMin=${meta.intervalMin} onClose=${() => setOpen(null)}/>` : null}
     </div>`;
 }
 function segBtn(cur, set, val, label) {
