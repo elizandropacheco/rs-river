@@ -130,6 +130,15 @@ node src/index.js        # http://localhost:8080
 | `CRAWL_INTERVAL_MIN` | 5      | Minutos entre cada coleta            |
 | `DATA_DIR`           | ./data | Onde o histórico é persistido        |
 | `ADMIN_TOKEN`        | gerado | Token do painel `/admin` (sem definir, um aleatório é gerado no 1º boot e mostrado no log) |
+| `ANA_IDENTIFICADOR` / `ANA_SENHA` | — | Credencial gratuita do HidroWebService da ANA — liga a coleta de nível **direto da fonte oficial** via REST (sem ela, tenta o SOAP público da ANA e cai no nivelguaiba como contingência) |
+| `INMET_TOKEN`        | —      | Token gratuito do apitempo (INMET) — liga a chuva **medida** da estação automática mais próxima |
+| `CEMADEN_EMAIL` / `CEMADEN_PASSWORD` | — | Cadastro gratuito no PED (ped.cemaden.gov.br) — liga os pluviômetros do CEMADEN |
+
+> **Independência de fontes:** o nível é buscado direto da telemetria oficial
+> ANA/SGB (REST autenticado ou SOAP público); o `nivelguaiba.com.br` é usado
+> apenas como **contingência** e para popular o histórico retroativo na
+> primeira execução. Chuva, vento e previsões vêm do Open-Meteo/GloFAS;
+> avisos do INMET; satélite da NOAA; radar do RainViewer.
 
 ### 🛠️ Painel de administração (`/admin`)
 

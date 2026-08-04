@@ -13,6 +13,7 @@ import { STATIONS, BASE_URL } from "./stations.js";
 import { SEED } from "./seed.js";
 import * as store from "./store.js";
 import * as weather from "./weather.js";
+import * as ana from "./ana.js";
 
 const UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
@@ -129,18 +130,6 @@ function computeRate(points) {
   return +rate.toFixed(1);
 }
 
-// weather.json -> chuva de hoje, previsão de hoje e acumulado da semana.
-function parseWeather(arr) {
-  if (!Array.isArray(arr)) return null;
-  const num = (v) => (typeof v === "number" ? v : parseNumber(v));
-  const hoje = arr.find((x) => x && x.type === "HOJE");
-  const fc = arr.filter((x) => x && x.type === "FORECAST");
-  const today = hoje ? num(hoje.rain) : fc[0] ? num(fc[0].rain) : null;
-  const forecast = fc[0] ? num(fc[0].rain) : today;
-  const week = fc.slice(0, 7).reduce((s, x) => s + (num(x.rain) || 0), 0);
-  return { today, forecast, week: fc.length ? +week.toFixed(1) : null };
-}
-
 /* ---------------- vento sul (represamento do Guaíba) ----------------
    No sistema Guaíba/Lagoa dos Patos, vento do quadrante SUL empurra a água da
    lagoa de volta e represa a saída do Guaíba, elevando o nível em Porto Alegre
@@ -185,31 +174,53 @@ export async function crawlStation(station) {
   const base = `${BASE_URL}/${station.slug}`;
 
   let level = null, rate = null, rain = null, wind = null, forecast = null,
-    floodcast = null, measured = null, ok = false;
+    floodcast = null, measured = null, ok = false, viaAna = false;
   try {
-    // 1) série de nível — longa na 1ª vez (popular histórico), depois só 7 dias
+    // 0) histórico raso? Popula o passado com a série longa do nivelguaiba
+    //    (só aqui ele ainda é útil como fonte primária — dados retroativos).
     const deep = store.getHistory(station.slug).length < SEED_MIN_POINTS;
-    let series = await fetchJson(`${base}.${deep ? SEED_RANGE : "7days"}.json`).catch(() => null);
-    if (!series) series = await fetchJson(`${base}.json`).catch(() => null);
-    const pts = seriesToPoints(series || {});
-    if (pts.length) {
-      store.mergeSeries(station.slug, pts);
-      level = pts[pts.length - 1].v;
+    if (deep) {
+      const long = await fetchJson(`${base}.${SEED_RANGE}.json`).catch(() => null);
+      const pts = seriesToPoints(long || {});
+      if (pts.length) store.mergeSeries(station.slug, pts);
+    }
+
+    // 1) série de nível — PRIMÁRIO: telemetria oficial ANA/SGB, direto da fonte
+    const anaSeries = await ana.fetchLevelSeries(station).catch(() => null);
+    if (anaSeries?.points?.length) {
+      store.mergeSeries(station.slug, anaSeries.points);
+      level = anaSeries.points[anaSeries.points.length - 1].v;
       ok = true;
+      viaAna = true;
+    } else {
+      // CONTINGÊNCIA: nivelguaiba.com.br (se ele bloquear, só perdemos isto)
+      let series = await fetchJson(`${base}.7days.json`).catch(() => null);
+      if (!series) series = await fetchJson(`${base}.json`).catch(() => null);
+      const pts = seriesToPoints(series || {});
+      if (pts.length) {
+        store.mergeSeries(station.slug, pts);
+        level = pts[pts.length - 1].v;
+        ok = true;
+      }
     }
     // 2) tendência sobre a série já consolidada
     rate = computeRate(store.getHistory(station.slug));
 
-    // 3) chuva / previsão
-    rain = parseWeather(await fetchJson(`${base}.weather.json`).catch(() => null));
-
-    // 4) vento (só onde o represamento importa: Guaíba)
+    // 3) vento (só onde o represamento importa: Guaíba)
     if (station.wind) wind = await fetchWind(station).catch(() => null);
 
-    // 5) previsão do tempo 7 dias (Open-Meteo, cache de 30 min no módulo)
+    // 4) previsão do tempo 7 dias (Open-Meteo, cache de 30 min no módulo).
+    //    A chuva do card sai daqui — independente do nivelguaiba.
     forecast = await weather.fetchForecast(station).catch(() => null);
+    if (forecast?.length) {
+      rain = {
+        today: forecast[0]?.rain ?? null,
+        forecast: forecast[0]?.rain ?? null,
+        week: +forecast.slice(0, 7).reduce((s, d) => s + (d.rain || 0), 0).toFixed(1),
+      };
+    }
 
-    // 6) previsão de vazão (GloFAS) + chuva medida (INMET/CEMADEN) — caches próprios
+    // 5) previsão de vazão (GloFAS) + chuva medida (INMET/CEMADEN) — caches próprios
     floodcast = await weather.fetchFlood(station).catch(() => null);
     measured = {
       inmet: await weather.fetchInmetRain(station).catch(() => null),
@@ -251,6 +262,8 @@ export async function crawlStation(station) {
     marginToFlood: flood != null && lvl != null ? +(flood - lvl).toFixed(2) : null,
     ts: nowIso(),
     live: ok,
+    // procedência do nível deste ciclo: ana (oficial) | nivelguaiba | cache
+    src: viaAna ? "ana" : ok ? "nivelguaiba" : prev.src || "cache",
     url: base,
   };
 

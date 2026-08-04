@@ -17,6 +17,10 @@ services:
       # CEMADEN: cadastro gratuito em ped.cemaden.gov.br
       # - CEMADEN_EMAIL=voce@exemplo.com
       # - CEMADEN_PASSWORD=sua-senha
+      # Nível direto da ANA (HidroWebService REST — cadastro gratuito no
+      # HidroWeb). Sem isso, tenta o SOAP público e cai no nivelguaiba.
+      # - ANA_IDENTIFICADOR=seu-identificador
+      # - ANA_SENHA=sua-senha
     volumes:
       # Persiste o histórico de elevação acumulado entre reinícios
       - ./data:/app/data

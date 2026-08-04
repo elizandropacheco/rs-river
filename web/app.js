@@ -273,7 +273,9 @@ function StationCard({ st, points, riverColor, onOpen, index }) {
         </div>` : null}
 
       <div class="card-foot">
-        <span>${st.live ? html`<span class="live-tag">● ao vivo</span>` : html`<span class="seed-tag">cache/seed</span>`}</span>
+        <span>${st.live
+          ? html`<span class="live-tag">● ao vivo${st.src === "ana" ? " · ANA" : ""}</span>`
+          : html`<span class="seed-tag">cache/seed</span>`}</span>
         <span class="tap-hint">toque para detalhes →</span>
       </div>
     </div>`;
@@ -1238,8 +1240,10 @@ function App() {
       </a>
 
       <div class="footer">
-        Dados coletados automaticamente de <a href="https://nivelguaiba.com.br" target="_blank" rel="noopener">nivelguaiba.com.br</a>
-        (fontes SGB/CPRM e ANA) · atualização a cada ${meta.intervalMin} min · o histórico de elevação é acumulado localmente.<br/>
+        Nível dos rios: telemetria oficial <b>ANA</b> e <b>SGB/CPRM</b> (com
+        <a href="https://nivelguaiba.com.br" target="_blank" rel="noopener">nivelguaiba.com.br</a> como contingência) ·
+        avisos <b>INMET</b> · satélite <b>NOAA GOES-19</b> · radar <b>RainViewer</b> · previsões <b>Open-Meteo/GloFAS</b> ·
+        atualização a cada ${meta.intervalMin} min · histórico acumulado localmente.<br/>
         Painel para acompanhamento — não substitui os alertas oficiais da Defesa Civil (telefone 199).<br/>
         Um projeto <a href="https://guerreirosdohumaita.com.br" target="_blank" rel="noopener">Guerreiros do Humaitá</a> · <i>O Povo pelo Povo!</i> 💙
       </div>
