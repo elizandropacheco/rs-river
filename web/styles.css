@@ -637,3 +637,55 @@ body::after{content:"";position:fixed;inset:-22%;z-index:0;pointer-events:none;
   background:linear-gradient(90deg,var(--normal),var(--atencao),var(--alerta),var(--inundacao))}
 
 .sat-note{color:var(--atencao);font-size:12px;margin:-6px 0 10px}
+
+/* ---------- previsão de vazão (GloFAS) ---------- */
+.fcast-box{margin-top:18px;border:1px solid var(--border);border-radius:12px;padding:14px 16px}
+.fcast-box h3{font-size:13.5px;margin-bottom:8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.fcast-tag{font-size:9.5px;font-weight:800;letter-spacing:.6px;color:var(--muted);
+  border:1px solid var(--border-strong);border-radius:5px;padding:2px 6px}
+.fcast-sum{color:var(--muted);font-size:13px;margin-bottom:10px;line-height:1.6}
+.fcast-chart{height:120px}
+.fcast-chart .area-chart{width:100%;height:100%}
+.fcast-src{color:var(--dim);font-size:11.5px;margin-top:8px;line-height:1.55}
+
+/* ---------- chuva medida (INMET/CEMADEN) ---------- */
+.meas-box{margin-top:18px;border:1px solid var(--border);border-radius:12px;padding:14px 16px}
+.meas-box h3{font-size:13.5px;margin-bottom:10px}
+.meas-row{display:flex;gap:12px;flex-wrap:wrap}
+.meas-item{flex:1;min-width:200px;background:var(--panel);border:1px solid var(--border);
+  border-radius:10px;padding:10px 12px;display:flex;flex-direction:column;gap:3px}
+.meas-item .k{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px}
+.meas-item .v{font-size:17px;font-weight:800;color:var(--accent)}
+.meas-item .sub{font-size:11.5px;color:var(--muted)}
+
+/* ---------- satélite: coluna de ferramentas ---------- */
+.sat-toolcol{display:flex;flex-direction:column;align-items:flex-end;gap:8px}
+
+/* ---------- radar ---------- */
+.radarwrap{margin-top:16px}
+.radar-canvas{position:relative;border:1px solid var(--border);border-radius:16px;overflow:hidden;
+  background:#0b1322;box-shadow:var(--shadow);aspect-ratio:1/1;max-height:76vh;margin:0 auto;max-width:900px}
+.radar-tile{position:absolute;display:block;object-fit:cover;filter:saturate(1.15)}
+.radar-city{position:absolute;transform:translate(-50%,-50%);display:flex;align-items:center;gap:4px;
+  pointer-events:none;z-index:3}
+.radar-city .rc-dot{width:9px;height:9px;border-radius:50%;border:1.5px solid #0a0e17;
+  box-shadow:0 0 8px currentColor}
+.radar-city .rc-name{font-size:10px;font-weight:700;color:#eaf2ff;text-shadow:0 1px 3px #000,0 0 6px #000}
+.radar-city.st-inundacao .rc-dot{animation:dot-pulse 1.6s ease-in-out infinite}
+.radar-time{position:absolute;right:12px;top:12px;z-index:4;font-size:12.5px;font-weight:800;
+  background:rgba(5,9,17,.8);border:1px solid var(--border);border-radius:999px;padding:5px 12px}
+.radar-time.future{color:#7dd3fc;border-color:rgba(56,189,248,.5)}
+.radar-bar{max-width:900px;margin:10px auto 0}
+.radar-bar input[type=range]{width:100%;accent-color:var(--accent)}
+
+/* ---------- ritmo vertical: respiro consistente entre blocos ---------- */
+.inmet-grid{margin:18px 0}
+.wind-strip{margin-bottom:20px}
+.controls{margin:2px 0 20px}
+.map-promo{margin:4px 0 24px}
+.gh-banner{margin-top:52px}
+/* modal: todas as seções com o mesmo respiro e padding */
+.modal .stat-grid{margin:20px 0 2px}
+.m-inmet,.fcast-box,.meas-box,.fc-box,.wind-box{margin-top:22px;padding:16px 18px}
+.m-inmet h3,.fcast-box h3,.meas-box h3,.fc-box h3,.wind-box h3{margin-bottom:12px}
+.m-links{margin-top:24px}

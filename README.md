@@ -59,9 +59,17 @@ automática:
   (tempestade, chuvas intensas…), com severidade e cor oficiais, casados
   automaticamente com as cidades monitoradas — faixa no topo com riscos e
   instruções, selo no card e no modal de cada estação atingida.
-- **Satélite GOES-19**: nova aba 🛰️ com a composição GEOCOLOR do sul da
-  América do Sul (NOAA/NESDIS STAR), atualizada a cada ~10 min — dá para ver as
-  frentes e tempestades chegando ao RS.
+- **Satélite GOES-19**: aba 🛰️ com a composição GEOCOLOR do sul da América do
+  Sul (NOAA/NESDIS STAR), com **loop animado** das últimas horas e camada
+  **⚡ Raios (GLM)** — densidade de descargas elétricas vista do espaço.
+- **Radar de chuva**: aba 📡 com o radar composto animado (RainViewer) — onde
+  está chovendo agora, últimas 2 h em loop e previsão imediata, com as cidades
+  monitoradas marcadas.
+- **Previsão de vazão (30 dias)**: modelo GloFAS/Copernicus por estação no
+  modal — sinal antecipado de subida antes de o nível reagir.
+- **Chuva medida** por estações oficiais no modal: INMET (estação automática
+  mais próxima) e pluviômetros do CEMADEN — ambos ativados por credenciais
+  gratuitas no ambiente (`INMET_TOKEN` / `CEMADEN_EMAIL`+`CEMADEN_PASSWORD`).
 - **Previsão do tempo 7 dias** por estação (condição, mín/máx, chuva e
   probabilidade) no modal de detalhes, via Open-Meteo.
 - **Vento sul em Porto Alegre**: previsão de 7 dias com a direção dominante e o

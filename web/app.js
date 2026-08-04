@@ -241,9 +241,9 @@ function StationCard({ st, points, riverColor, onOpen, index }) {
       </div>
 
       <div class="spark">
-        <span class="lbl">Nível · últimas 48 h</span>
+        <span class="lbl">Nível · últimos 7 dias</span>
         <div class="spark-box">
-          <${AreaChart} points=${sliceDays(points, 2)} color=${stColor} flood=${st.flood}/>
+          <${AreaChart} points=${sliceDays(points, 7)} color=${stColor} flood=${st.flood}/>
         </div>
       </div>
 
@@ -350,6 +350,63 @@ function ForecastPanel({ forecast }) {
     </div>`;
 }
 
+/* ---------------- previsão de vazão (GloFAS/Copernicus) ----------------
+   O dado PREDITIVO do painel: vazão modelada no ponto da estação, 7 dias
+   passados + 30 de previsão. Nível observado diz onde o rio ESTÁ; a vazão
+   prevista sugere para onde ele VAI. */
+function FloodcastPanel({ floodcast, riverColor }) {
+  const days = floodcast?.days;
+  if (!days || days.length < 10) return null;
+  const today = days[7] || days[0]; // 7 dias de passado antes do "hoje"
+  const next7 = days.slice(8, 15);
+  const max7 = next7.length ? Math.max(...next7.map((d) => d.v)) : null;
+  const delta = today?.v > 0 && max7 != null ? ((max7 - today.v) / today.v) * 100 : null;
+  const trend = delta == null ? null
+    : delta > 15 ? { icon: "📈", word: "deve SUBIR", color: "#fb7185" }
+    : delta < -15 ? { icon: "📉", word: "deve baixar", color: "#38bdf8" }
+    : { icon: "➖", word: "estável", color: "#8ea3c6" };
+  return html`
+    <div class="fcast-box">
+      <h3>🔮 Vazão prevista · 30 dias <span class="fcast-tag">GloFAS · Copernicus</span></h3>
+      ${trend ? html`
+        <p class="fcast-sum">
+          Nos próximos 7 dias a vazão modelada <b style=${{ color: trend.color }}>${trend.icon} ${trend.word}</b>
+          ${delta != null && Math.abs(delta) > 1 ? html` (pico ${delta > 0 ? "+" : ""}${fmt(delta, 0)}% vs. hoje)` : null}
+          — hoje ~${fmt(today.v, today.v < 10 ? 1 : 0)} ${floodcast.unit}.
+        </p>` : null}
+      <div class="fcast-chart">
+        <${AreaChart} points=${days} color=${riverColor}/>
+      </div>
+      <p class="fcast-src">
+        Modelo global GloFAS (Copernicus/Open-Meteo), célula de ~5 km no ponto da estação — use a
+        <b>tendência</b> como sinal antecipado, não o valor absoluto como medição local.
+      </p>
+    </div>`;
+}
+
+/* Chuva MEDIDA por estações oficiais (INMET / pluviômetros CEMADEN). */
+function MeasuredPanel({ measured }) {
+  const i = measured?.inmet, c = measured?.cemaden;
+  if (!i && !c) return null;
+  return html`
+    <div class="meas-box">
+      <h3>🌧️ Chuva medida (estações oficiais)</h3>
+      <div class="meas-row">
+        ${i ? html`
+          <div class="meas-item">
+            <span class="k">INMET · ${i.station}${i.distKm != null ? ` (${i.distKm} km)` : ""}</span>
+            <span class="v">${i.rainToday != null ? `${fmt(i.rainToday, 1)} mm hoje` : "—"}</span>
+            ${i.temp != null ? html`<span class="sub">🌡️ ${fmt(i.temp, 0)}°C · 💧 ${fmt(i.humidity, 0)}%</span>` : null}
+          </div>` : null}
+        ${c ? html`
+          <div class="meas-item">
+            <span class="k">CEMADEN${c.station ? ` · ${c.station}` : ""}</span>
+            <span class="v">${fmt(c.rain24h, 1)} mm em 24 h</span>
+          </div>` : null}
+      </div>
+    </div>`;
+}
+
 /* ---------------- avisos meteorológicos do INMET ---------------- */
 const fmtAvisoFim = (s) => {
   if (!s) return "";
@@ -433,30 +490,134 @@ function SatView() {
     const t = setInterval(() => setBucket(Math.floor(Date.now() / 600000)), 60000);
     return () => clearInterval(t);
   }, []);
-  const [mode, setMode] = useState("leve"); // leve | alta | anim
-  const src = mode === "anim"
-    ? `/api/satelite/anim.gif?t=${Math.floor(bucket / 2)}`
-    : `/api/satelite/${mode === "alta" ? 1800 : 900}.jpg?t=${bucket}`;
+  const [layer, setLayer] = useState("nuvens"); // nuvens | raios
+  const [mode, setMode] = useState("foto"); // foto | hd | loop (hd só p/ nuvens)
+  const eff = layer === "raios" && mode === "hd" ? "foto" : mode;
+  const src = layer === "raios"
+    ? (eff === "loop" ? `/api/satelite/glmanim.gif?t=${Math.floor(bucket / 2)}` : `/api/satelite/glm.jpg?t=${bucket}`)
+    : (eff === "loop" ? `/api/satelite/anim.gif?t=${Math.floor(bucket / 2)}`
+      : `/api/satelite/${eff === "hd" ? 1800 : 900}.jpg?t=${bucket}`);
   return html`
     <div class="satwrap">
       <div class="sat-head">
         <div class="sat-title">
-          <h2>🛰️ Satélite · GOES-19 GEOCOLOR</h2>
-          <p>Imagem mais recente do sul da América do Sul — nuvens, frentes e tempestades chegando ao RS. Atualiza a cada ~10 min.</p>
+          <h2>🛰️ Satélite · GOES-19 ${layer === "raios" ? "· ⚡ Raios (GLM)" : "GEOCOLOR"}</h2>
+          <p>${layer === "raios"
+            ? "Densidade de raios detectada do espaço pelo sensor GLM — onde os pontos acendem, há tempestade elétrica ativa agora."
+            : "Imagem mais recente do sul da América do Sul — nuvens, frentes e tempestades chegando ao RS. Atualiza a cada ~10 min."}</p>
         </div>
-        <div class="sat-tools seg">
-          <button class=${mode === "leve" ? "on" : ""} onClick=${() => setMode("leve")}>Leve</button>
-          <button class=${mode === "alta" ? "on" : ""} onClick=${() => { setMode("alta"); track("satellite_hd"); }}>Alta</button>
-          <button class=${mode === "anim" ? "on" : ""} onClick=${() => { setMode("anim"); track("satellite_anim"); }}>▶ Animação</button>
+        <div class="sat-toolcol">
+          <div class="sat-tools seg">
+            <button class=${layer === "nuvens" ? "on" : ""} onClick=${() => setLayer("nuvens")}>🌥️ Nuvens</button>
+            <button class=${layer === "raios" ? "on" : ""} onClick=${() => { setLayer("raios"); track("satellite_glm"); }}>⚡ Raios</button>
+          </div>
+          <div class="sat-tools seg">
+            <button class=${eff === "foto" ? "on" : ""} onClick=${() => setMode("foto")}>Foto</button>
+            ${layer === "nuvens" ? html`<button class=${eff === "hd" ? "on" : ""} onClick=${() => { setMode("hd"); track("satellite_hd"); }}>HD</button>` : null}
+            <button class=${eff === "loop" ? "on" : ""} onClick=${() => { setMode("loop"); track("satellite_anim", { layer }); }}>▶ Loop</button>
+          </div>
         </div>
       </div>
-      ${mode === "anim" ? html`<p class="sat-note">Loop das últimas horas (~14 MB) — pode demorar alguns segundos para carregar.</p>` : null}
+      ${eff === "loop" ? html`<p class="sat-note">Loop das últimas horas (~14 MB) — pode demorar alguns segundos para carregar.</p>` : null}
       <div class="sat-canvas">
-        <img key=${mode} src=${src} alt="Imagem de satélite GOES-19 GEOCOLOR do sul da América do Sul (NOAA/NESDIS)" loading="lazy"/>
+        <img key=${layer + eff} src=${src} alt=${layer === "raios"
+          ? "Densidade de raios (GOES-19 GLM) no sul da América do Sul — NOAA/NESDIS"
+          : "Imagem de satélite GOES-19 GEOCOLOR do sul da América do Sul (NOAA/NESDIS)"} loading="lazy"/>
       </div>
       <p class="sat-src">
         Fonte original: <a href="https://www.star.nesdis.noaa.gov/GOES/sector.php?sat=G19&sector=ssa" target="_blank" rel="noopener">NOAA/NESDIS STAR — GOES-19</a>,
-        composição GEOCOLOR (dia: cor natural · noite: infravermelho). O RS aparece no centro-leste da imagem, entre o Uruguai e Santa Catarina.
+        ${layer === "raios"
+          ? "GLM (Geostationary Lightning Mapper) — densidade de flashes dos últimos minutos sobre o infravermelho."
+          : "composição GEOCOLOR (dia: cor natural · noite: infravermelho)."} O RS aparece no centro-leste da imagem, entre o Uruguai e Santa Catarina.
+      </p>
+    </div>`;
+}
+
+/* ---------------- radar de chuva (RainViewer) ----------------
+   Grade fixa de tiles Web-Mercator (z=6) cobrindo o RS, animando os frames
+   do radar composto: ~2 h de passado + previsão imediata. Sem biblioteca de
+   mapas — a grade é estática e as cidades são projetadas por cima. */
+const RADAR_GRID = { z: 7, xs: [43, 44, 45, 46], ys: [73, 74, 75, 76] };
+const mercY = (lat) => {
+  const r = (lat * Math.PI) / 180;
+  return (1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2;
+};
+
+function RadarView({ stations }) {
+  const [frames, setFrames] = useState(null);
+  const [idx, setIdx] = useState(0);
+  const [playing, setPlaying] = useState(true);
+
+  useEffect(() => {
+    let alive = true;
+    const load = () => fetch("/api/radar/frames").then((r) => r.json()).then((d) => {
+      if (alive && d?.past?.length) { setFrames(d); setIdx(d.past.length - 1); }
+    }).catch(() => {});
+    load();
+    const t = setInterval(load, 5 * 60000);
+    return () => { alive = false; clearInterval(t); };
+  }, []);
+
+  const all = frames ? [...frames.past, ...frames.nowcast] : [];
+  useEffect(() => {
+    if (!playing || all.length < 2) return;
+    const t = setInterval(() => setIdx((i) => (i + 1) % all.length), 650);
+    return () => clearInterval(t);
+  }, [playing, all.length]);
+
+  if (!frames) return html`<div class="map-empty">Carregando radar…</div>`;
+  const f = all[Math.min(idx, all.length - 1)];
+  const { z, xs, ys } = RADAR_GRID;
+  const n = 2 ** z;
+  const x0 = xs[0] / n, x1 = (xs[xs.length - 1] + 1) / n;
+  const y0 = ys[0] / n, y1 = (ys[ys.length - 1] + 1) / n;
+  const pos = (lat, lng) => ({
+    left: (((lng + 180) / 360 - x0) / (x1 - x0)) * 100,
+    top: ((mercY(lat) - y0) / (y1 - y0)) * 100,
+  });
+  const isNowcast = idx >= frames.past.length;
+  const timeLbl = f ? new Date(f.time * 1000).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }) : "";
+
+  return html`
+    <div class="radarwrap">
+      <div class="sat-head">
+        <div class="sat-title">
+          <h2>📡 Radar de chuva · agora</h2>
+          <p>Onde está <b>chovendo neste momento</b> sobre o RS e arredores, com as últimas ~2 h em loop
+            ${frames.nowcast.length ? " e previsão imediata" : ""}. As cidades monitoradas estão marcadas.</p>
+        </div>
+        <div class="sat-tools seg">
+          <button onClick=${() => setPlaying((p) => !p)}>${playing ? "⏸ Pausar" : "▶ Rodar"}</button>
+        </div>
+      </div>
+      <div class="radar-canvas">
+        ${ys.map((y) => xs.map((x) => html`
+          <img key=${`${x}-${y}`} class="radar-tile"
+            style=${{ left: ((xs.indexOf(x)) / xs.length * 100) + "%", top: ((ys.indexOf(y)) / ys.length * 100) + "%",
+              width: (100 / xs.length) + "%", height: (100 / ys.length) + "%" }}
+            src=${`${frames.host}${f.path}/256/${z}/${x}/${y}/4/1_1.png`} alt=""/>
+        `))}
+        ${stations.filter((s) => s.lat != null).map((s) => {
+          const p = pos(s.lat, s.lng);
+          if (p.left < 1 || p.left > 99 || p.top < 1 || p.top > 99) return null;
+          return html`
+            <div key=${s.slug} class=${`radar-city st-${s.status}`} style=${{ left: p.left + "%", top: p.top + "%" }}>
+              <span class="rc-dot" style=${{ background: STATUS_COLOR[s.status] }}></span>
+              <span class="rc-name">${s.city}</span>
+            </div>`;
+        })}
+        <div class=${`radar-time ${isNowcast ? "future" : ""}`}>
+          ${isNowcast ? "🔮 previsão · " : ""}${timeLbl}
+        </div>
+      </div>
+      <div class="radar-bar">
+        <input type="range" min="0" max=${Math.max(0, all.length - 1)} value=${Math.min(idx, all.length - 1)}
+          onInput=${(e) => { setPlaying(false); setIdx(Number(e.target.value)); }}/>
+      </div>
+      <p class="sat-src">
+        Radar composto agregado pelo <a href="https://www.rainviewer.com/" target="_blank" rel="noopener">RainViewer</a>
+        a partir de radares meteorológicos públicos · a cobertura no interior do RS depende dos radares disponíveis —
+        onde não há radar, a área aparece sem eco mesmo chovendo (confira também o 🛰️ Satélite).
       </p>
     </div>`;
 }
@@ -503,7 +664,7 @@ function Modal({ st, points, riverColor, onClose }) {
     return () => { window.removeEventListener("keydown", h); document.body.style.overflow = ""; };
   }, [onClose]);
 
-  const [period, setPeriod] = useState(2); // padrão: últimos 2 dias
+  const [period, setPeriod] = useState(7); // padrão: últimos 7 dias
   const stColor = STATUS_COLOR[st.status];
   const data = useMemo(() => sliceDays(points, period), [points, period]);
   const vals = data.map((p) => p.v);
@@ -609,6 +770,10 @@ function Modal({ st, points, riverColor, onClose }) {
               </div>`)}
             <p class="inmet-src">Detalhes, riscos e instruções na faixa de avisos do topo do painel.</p>
           </div>` : null}
+
+        <${FloodcastPanel} floodcast=${st.floodcast} riverColor=${riverColor}/>
+
+        <${MeasuredPanel} measured=${st.measured}/>
 
         <${ForecastPanel} forecast=${st.forecast}/>
 
@@ -968,8 +1133,9 @@ function App() {
   const firstView = useRef(true);
   useEffect(() => {
     if (firstView.current) { firstView.current = false; return; }
-    const path = view === "mapa" ? "/mapa" : view === "satelite" ? "/satelite" : "/";
-    const title = view === "mapa" ? "Mapa da Bacia do Guaíba" : view === "satelite" ? "Satélite GOES-19" : "Painel dos Rios";
+    const path = view === "mapa" ? "/mapa" : view === "satelite" ? "/satelite" : view === "radar" ? "/radar" : "/";
+    const title = view === "mapa" ? "Mapa da Bacia do Guaíba" : view === "satelite" ? "Satélite GOES-19"
+      : view === "radar" ? "Radar de Chuva" : "Painel dos Rios";
     track("page_view", { page_path: path, page_title: title, page_location: location.origin + path });
   }, [view]);
 
@@ -1024,6 +1190,7 @@ function App() {
           ${segBtn(view, setView, "painel", "▦ Painel")}
           ${segBtn(view, setView, "mapa", "🗺️ Mapa")}
           ${segBtn(view, setView, "satelite", "🛰️ Satélite")}
+          ${segBtn(view, setView, "radar", "📡 Radar")}
         </div>
         ${view === "painel" ? html`
           <div class="seg">
@@ -1048,6 +1215,8 @@ function App() {
           ? html`<${MapView} stations=${stations} rivers=${meta.rivers || {}} onOpen=${(sl) => openStation(sl, "mapa")}/>`
           : view === "satelite"
           ? html`<${SatView}/>`
+          : view === "radar"
+          ? html`<${RadarView} stations=${stations}/>`
           : html`
             <${MapPromo} stations=${stations} rivers=${meta.rivers || {}}
               onOpen=${() => { setView("mapa"); track("map_promo_click"); }}/>

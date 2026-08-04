@@ -179,10 +179,16 @@ const server = http.createServer((req, res) => {
   // Avisos meteorológicos vigentes no RS (fonte: API oficial do INMET)
   if (url === "/api/alerts") return sendJson(res, 200, weather.getAlerts());
 
-  // Satélite GOES-19 GEOCOLOR (NOAA/NESDIS STAR) — proxy com cache
-  const sat = url.match(/^\/api\/satelite\/(900\.jpg|1800\.jpg|anim\.gif)$/);
+  // Índice de frames do radar de chuva (RainViewer) — tiles vão direto ao CDN
+  if (url === "/api/radar/frames") {
+    return void weather.fetchRadarFrames().then((d) =>
+      d ? sendJson(res, 200, d) : sendJson(res, 503, { error: "radar indisponível" }));
+  }
+
+  // Satélite GOES-19 (NOAA/NESDIS STAR): nuvens (GEOCOLOR) e raios (GLM)
+  const sat = url.match(/^\/api\/satelite\/(900\.jpg|1800\.jpg|anim\.gif|glm\.jpg|glmanim\.gif)$/);
   if (sat) {
-    const kind = sat[1] === "anim.gif" ? "anim" : Number(sat[1].split(".")[0]);
+    const kind = { "anim.gif": "anim", "glm.jpg": "glm", "glmanim.gif": "glmanim" }[sat[1]] || Number(sat[1].split(".")[0]);
     return void weather.fetchSatellite(kind).then((img) => {
       if (!img) { res.writeHead(503); return res.end("satélite indisponível"); }
       res.writeHead(200, {

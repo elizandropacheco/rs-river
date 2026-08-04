@@ -184,7 +184,8 @@ export async function crawlStation(station) {
   const seed = SEED[station.slug] || {};
   const base = `${BASE_URL}/${station.slug}`;
 
-  let level = null, rate = null, rain = null, wind = null, forecast = null, ok = false;
+  let level = null, rate = null, rain = null, wind = null, forecast = null,
+    floodcast = null, measured = null, ok = false;
   try {
     // 1) série de nível — longa na 1ª vez (popular histórico), depois só 7 dias
     const deep = store.getHistory(station.slug).length < SEED_MIN_POINTS;
@@ -207,6 +208,13 @@ export async function crawlStation(station) {
 
     // 5) previsão do tempo 7 dias (Open-Meteo, cache de 30 min no módulo)
     forecast = await weather.fetchForecast(station).catch(() => null);
+
+    // 6) previsão de vazão (GloFAS) + chuva medida (INMET/CEMADEN) — caches próprios
+    floodcast = await weather.fetchFlood(station).catch(() => null);
+    measured = {
+      inmet: await weather.fetchInmetRain(station).catch(() => null),
+      cemaden: await weather.fetchCemadenRain(station).catch(() => null),
+    };
   } catch (e) {
     console.warn(`[crawler] ${station.slug}: ${e.message} (usando dados anteriores/seed)`);
   }
@@ -235,6 +243,9 @@ export async function crawlStation(station) {
     },
     wind: wind || prev.wind || null,
     forecast: forecast || prev.forecast || null,
+    // vazão prevista (GloFAS/Copernicus) e chuva medida (INMET / CEMADEN)
+    floodcast: floodcast || prev.floodcast || null,
+    measured: measured?.inmet || measured?.cemaden ? measured : prev.measured || null,
     // avisos INMET vigentes que incluem este município (atualizados no ciclo)
     alerts: weather.alertsFor(station.slug),
     marginToFlood: flood != null && lvl != null ? +(flood - lvl).toFixed(2) : null,

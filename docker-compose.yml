@@ -11,6 +11,12 @@ services:
       # Token do painel /admin (gestão do Google Tag Manager). Sem definir,
       # um token aleatório é gerado no 1º boot e exibido no log.
       # - ADMIN_TOKEN=defina-um-token-forte-aqui
+      # Chuva medida por estações oficiais (opcionais; recursos ligam sozinhos):
+      # INMET: solicite o token gratuito ao INMET (apitempo)
+      # - INMET_TOKEN=seu-token
+      # CEMADEN: cadastro gratuito em ped.cemaden.gov.br
+      # - CEMADEN_EMAIL=voce@exemplo.com
+      # - CEMADEN_PASSWORD=sua-senha
     volumes:
       # Persiste o histórico de elevação acumulado entre reinícios
       - ./data:/app/data
