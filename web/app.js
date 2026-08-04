@@ -357,31 +357,50 @@ const fmtAvisoFim = (s) => {
   return m ? `${m[3]}/${m[2]} ${m[4]}` : s;
 };
 
-function AlertStrip({ alerts }) {
+const sevClass = (s) =>
+  /grande/i.test(s || "") ? "sev-max" : /^perigo$/i.test(String(s || "").trim()) ? "sev-high" : "sev-warn";
+
+function AlertStrip({ alerts, stations }) {
   const [openId, setOpenId] = useState(null);
   if (!alerts?.list?.length) return null;
+  const cityName = (slug) => stations.find((s) => s.slug === slug)?.city || slug;
+  const total = stations.length || 14;
   return html`
-    <div class="inmet-strip">
+    <div class="inmet-grid">
       ${alerts.list.map((a) => {
         const open = openId === a.id;
+        const cities = (a.cidades || []).map(cityName);
+        const region = !cities.length
+          ? "outras regiões do RS"
+          : cities.length === total
+          ? `todas as ${total} cidades`
+          : cities.slice(0, 2).join(", ") + (cities.length > 2 ? ` +${cities.length - 2}` : "");
         return html`
-          <div class="inmet-item" key=${a.id} style=${{ "--ac": a.cor }}>
+          <div class=${`inmet-item ${sevClass(a.severidade)} ${open ? "open" : ""}`} key=${a.id} style=${{ "--ac": a.cor }}>
             <button class="inmet-head" onClick=${() => {
               setOpenId(open ? null : a.id);
               if (!open) track("inmet_alert_open", { alert_event: a.evento, alert_severity: a.severidade });
             }}>
-              <span class="inmet-dot"></span>
-              <b>INMET: ${a.evento}</b>
-              <span class="inmet-sev">${a.severidade}</span>
-              <span class="inmet-until">até ${fmtAvisoFim(a.fim)}</span>
-              <span class="inmet-cities">${a.cidades.length ? `${a.cidades.length} cidade${a.cidades.length > 1 ? "s" : ""} monitorada${a.cidades.length > 1 ? "s" : ""}` : "RS"}</span>
-              <span class="inmet-arrow">${open ? "▴" : "▾"}</span>
+              <div class="inmet-row1">
+                <span class="inmet-dot"></span>
+                <b>${a.evento}</b>
+                <span class="inmet-sev">${a.severidade}</span>
+                <span class="inmet-arrow">${open ? "▴" : "▾"}</span>
+              </div>
+              <div class="inmet-row2">
+                <span title="Vigência do aviso">⏱ até ${fmtAvisoFim(a.fim)}</span>
+                <span class="inmet-region" title="Cidades monitoradas dentro da área do aviso">📍 ${region}</span>
+              </div>
             </button>
             ${open ? html`
               <div class="inmet-body">
+                ${cities.length ? html`
+                  <div class="inmet-chiprow">
+                    ${cities.map((c) => html`<span class="inmet-chip" key=${c}>${c}</span>`)}
+                  </div>` : null}
                 ${a.riscos?.length ? html`<p><b>Riscos:</b> ${a.riscos.join(" ")}</p>` : null}
                 ${a.instrucoes?.length ? html`<p><b>Instruções:</b> ${a.instrucoes.join(" ")}</p>` : null}
-                <p class="inmet-src">Fonte: alerta oficial do INMET · vigência ${fmtAvisoFim(a.inicio)} → ${fmtAvisoFim(a.fim)}.</p>
+                <p class="inmet-src">Fonte: aviso oficial do INMET · vigência ${fmtAvisoFim(a.inicio)} → ${fmtAvisoFim(a.fim)} · a área completa do aviso pode abranger outros municípios além dos monitorados.</p>
               </div>` : null}
           </div>`;
       })}
@@ -764,6 +783,65 @@ function MapView({ stations, rivers, onOpen }) {
     </div>`;
 }
 
+/* ---------------- destaque do mapa (tela inicial) ----------------
+   Mini-mapa ao vivo, não interativo: mesmo espaço projetado do MapView
+   (contorno do RS + rios + estações por status), servindo de "isca" para a
+   aba Mapa — o recurso mais diferenciado do painel. */
+function MiniMap({ stations, rivers }) {
+  const coord = useMemo(() => {
+    const c = {};
+    for (const s of stations) if (s.lat != null && s.lng != null) c[s.slug] = projRS(s.lat, s.lng);
+    return c;
+  }, [stations]);
+  if (Object.keys(coord).length < 2) return null;
+  const { X0, Y0, VW, VH } = ZOOMS.bacia;
+  const g = coord[GUAIBA];
+  return html`
+    <svg class="mini-map" viewBox=${`${X0} ${Y0} ${VW} ${VH}`} preserveAspectRatio="xMidYMid meet" aria-hidden="true">
+      <path class="rs-outline" d=${RS.path}/>
+      ${g ? html`<ellipse cx=${g.x} cy=${g.y} rx="120" ry="72" fill="rgba(56,189,248,.14)"/>` : null}
+      ${FLOWS.map((f) => {
+        const nodes = f.order.map((sl) => coord[sl]).filter(Boolean);
+        const full = g && f.order[f.order.length - 1] !== GUAIBA ? [...nodes, g] : nodes;
+        if (full.length < 2) return null;
+        return html`<path key=${f.river} class="mini-river" d=${pathFromSegments(curveSegments(full))}
+          stroke=${rivers[f.river] || "#38bdf8"}/>`;
+      })}
+      ${stations.filter((s) => coord[s.slug]).map((s) => {
+        const c = coord[s.slug], col = STATUS_COLOR[s.status];
+        return html`<g key=${s.slug} transform=${`translate(${c.x.toFixed(1)} ${c.y.toFixed(1)})`}>
+          ${s.status === "inundacao" ? html`<circle r="9" fill="none" stroke=${col} stroke-width="2">
+            <animate attributeName="r" values="9;20" dur="1.8s" repeatCount="indefinite"/>
+            <animate attributeName="opacity" values="0.8;0" dur="1.8s" repeatCount="indefinite"/></circle>` : null}
+          <circle r="8" fill=${col} opacity="0.28"/>
+          <circle r="5" fill=${col} stroke="#0a0e17" stroke-width="1.5"/>
+        </g>`;
+      })}
+    </svg>`;
+}
+
+function MapPromo({ stations, rivers, onOpen }) {
+  const worst = stations.find((s) => s.status === "inundacao" || s.status === "alerta");
+  return html`
+    <div class="map-promo" onClick=${onOpen} role="button" tabindex="0"
+         onKeyDown=${(e) => (e.key === "Enter" || e.key === " ") && onOpen()}>
+      <div class="mp-txt">
+        <div class="mp-kicker">✨ Recurso exclusivo</div>
+        <h2>🗺️ Mapa ao vivo da Bacia do Guaíba</h2>
+        <p>
+          Todas as estações georreferenciadas sobre o mapa do RS, com o <b>sentido da correnteza</b>
+          (montante → jusante) até o Delta do Jacuí — veja de onde a cheia vem e <b>o que chega
+          rio abaixo</b> antes de chegar.
+        </p>
+        <span class="mp-cta">Abrir o mapa <span class="mp-arrow">→</span></span>
+      </div>
+      <div class="mp-preview">
+        <${MiniMap} stations=${stations} rivers=${rivers}/>
+        ${worst ? html`<div class="mp-flag st-${worst.status}">● ${worst.city}: ${STATUS_LABEL[worst.status]}</div>` : null}
+      </div>
+    </div>`;
+}
+
 function MapInfo() {
   return html`
     <div class="map-info">
@@ -902,7 +980,7 @@ function App() {
       <${Topbar} stations=${stations} updatedAt=${updatedAt} connected=${connected}
         intervalMin=${meta.intervalMin} filter=${filter} setFilter=${setFilter}/>
 
-      <${AlertStrip} alerts=${alerts}/>
+      <${AlertStrip} alerts=${alerts} stations=${stations}/>
 
       ${windSt ? html`<${WindStrip} wind=${windSt.wind} city=${windSt.city}/>` : null}
 
@@ -935,6 +1013,8 @@ function App() {
         : view === "satelite"
         ? html`<${SatView}/>`
         : html`
+          <${MapPromo} stations=${stations} rivers=${meta.rivers || {}}
+            onOpen=${() => { setView("mapa"); track("map_promo_click"); }}/>
           <div class="grid">
             ${vlist.map((st, i) => html`
               <${StationCard} key=${st.slug} st=${st} index=${i}
