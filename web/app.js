@@ -166,17 +166,19 @@ function TimeAxis({ points }) {
   return html`<div class="time-axis"><span>${f(t0)}</span><span>${f(tm)}</span><span>${f(t1)}</span></div>`;
 }
 
-function AreaChart({ points, color, flood, axis = false, markIndex = null }) {
+function AreaChart({ points, color, flood, axis = false, markIndex = null, refValue = null, refLabel = null, unit = "m" }) {
   const series = (points || []).filter((p) => p && p.v != null);
   const data = series.map((p) => p.v);
+  const [hov, setHov] = useState(null); // índice do ponto sob o mouse
   if (data.length < 2) {
     return html`<div class="chart-empty">coletando histórico…</div>`;
   }
   const W = 300, H = 100, pad = 5;
   let min = Math.min(...data), max = Math.max(...data);
-  // A cota entra no enquadramento dos DOIS lados: se o rio passou a semana
-  // inteira acima dela (inundação), a linha precisa aparecer abaixo da série.
+  // A cota e a linha de referência entram no enquadramento dos DOIS lados:
+  // se o rio passou a semana acima da cota, ela aparece abaixo da série.
   if (flood != null) { max = Math.max(max, flood); min = Math.min(min, flood); }
+  if (refValue != null) { max = Math.max(max, refValue); min = Math.min(min, refValue); }
   // margem de respiro no topo/base para a linha não colar nas bordas
   const span0 = max - min || 1;
   min -= span0 * 0.08;
@@ -189,29 +191,66 @@ function AreaChart({ points, color, flood, axis = false, markIndex = null }) {
   const area = `${line} L${x(data.length - 1).toFixed(1)},${H - pad} L${x(0).toFixed(1)},${H - pad} Z`;
   const gid = "g" + Math.abs(hashStr(color + data.length + min.toFixed(2)));
   const floodY = flood != null ? y(flood) : null;
-  const last = data[data.length - 1];
+  const refY = refValue != null ? y(refValue) : null;
   const floodOn = floodY != null && floodY > pad && floodY < H - pad;
+
+  // tooltip: fração horizontal do mouse -> ponto mais próximo
+  const spanMs = (Date.parse(series[series.length - 1].t) || 0) - (Date.parse(series[0].t) || 0);
+  const fmtT = (t) => {
+    const d = new Date(t);
+    if (isNaN(d)) return String(t);
+    return spanMs > 3 * 864e5
+      ? d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })
+      : d.toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+  };
+  const onMove = (e) => {
+    const r = e.currentTarget.getBoundingClientRect();
+    const cx = (e.touches ? e.touches[0].clientX : e.clientX) - r.left;
+    const frac = Math.min(1, Math.max(0, cx / r.width));
+    setHov(Math.round(frac * (data.length - 1)));
+  };
+  const hp = hov != null ? series[hov] : null;
+  const hFrac = hov != null ? x(hov) / W : 0;
+
   return html`
-    <svg class="area-chart" viewBox=${`0 0 ${W} ${H}`} preserveAspectRatio="none">
-      <defs>
-        <linearGradient id=${gid} x1="0" x2="0" y1="0" y2="1">
-          <stop offset="0%" stop-color=${color} stop-opacity="0.42"/>
-          <stop offset="100%" stop-color=${color} stop-opacity="0.02"/>
-        </linearGradient>
-      </defs>
-      ${floodOn
-        ? html`<line x1="0" x2=${W} y1=${floodY} y2=${floodY} stroke="#ef4444" stroke-width="1.2" stroke-dasharray="5 4" opacity="0.85" vector-effect="non-scaling-stroke"/>`
-        : null}
-      ${markIndex != null && markIndex >= 0 && markIndex < data.length
-        ? html`<line x1=${x(markIndex).toFixed(1)} x2=${x(markIndex).toFixed(1)} y1=${pad} y2=${H - pad}
-            stroke="#8ea3c6" stroke-width="1" stroke-dasharray="3 4" opacity="0.7" vector-effect="non-scaling-stroke"/>`
-        : null}
-      <path class="chart-area" d=${area} fill=${`url(#${gid})`}/>
-      <path class="chart-line" pathLength="1" d=${line} fill="none" stroke=${color} stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round" vector-effect="non-scaling-stroke"/>
-      <circle cx=${x(data.length - 1).toFixed(1)} cy=${y(last).toFixed(1)} r="3.4" fill=${color} vector-effect="non-scaling-stroke">
-        <animate attributeName="r" values="3.4;6;3.4" dur="1.8s" repeatCount="indefinite"/>
-      </circle>
-    </svg>`;
+    <div class="chart-wrap" onMouseMove=${onMove} onMouseLeave=${() => setHov(null)}
+         onTouchStart=${onMove} onTouchMove=${onMove} onTouchEnd=${() => setHov(null)}>
+      <svg class="area-chart" viewBox=${`0 0 ${W} ${H}`} preserveAspectRatio="none">
+        <defs>
+          <linearGradient id=${gid} x1="0" x2="0" y1="0" y2="1">
+            <stop offset="0%" stop-color=${color} stop-opacity="0.42"/>
+            <stop offset="100%" stop-color=${color} stop-opacity="0.02"/>
+          </linearGradient>
+        </defs>
+        ${floodOn
+          ? html`<line x1="0" x2=${W} y1=${floodY} y2=${floodY} stroke="#ef4444" stroke-width="1.2" stroke-dasharray="5 4" opacity="0.85" vector-effect="non-scaling-stroke"/>`
+          : null}
+        ${refY != null
+          ? html`<line x1="0" x2=${W} y1=${refY.toFixed(1)} y2=${refY.toFixed(1)} stroke="#8ea3c6" stroke-width="1" stroke-dasharray="4 4" opacity="0.75" vector-effect="non-scaling-stroke"/>`
+          : null}
+        ${markIndex != null && markIndex >= 0 && markIndex < data.length
+          ? html`<line x1=${x(markIndex).toFixed(1)} x2=${x(markIndex).toFixed(1)} y1=${pad} y2=${H - pad}
+              stroke="#8ea3c6" stroke-width="1" stroke-dasharray="3 4" opacity="0.7" vector-effect="non-scaling-stroke"/>`
+          : null}
+        <path d=${area} fill=${`url(#${gid})`}/>
+        <path d=${line} fill="none" stroke=${color} stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round" vector-effect="non-scaling-stroke"/>
+        <circle cx=${x(data.length - 1).toFixed(1)} cy=${y(data[data.length - 1]).toFixed(1)} r="2.6" fill=${color} vector-effect="non-scaling-stroke">
+          <animate attributeName="r" values="2.6;4.2;2.6" dur="1.8s" repeatCount="indefinite"/>
+        </circle>
+        ${hp ? html`
+          <line x1=${x(hov).toFixed(1)} x2=${x(hov).toFixed(1)} y1=${pad} y2=${H - pad}
+            stroke="#e8eefc" stroke-width="1" opacity="0.55" vector-effect="non-scaling-stroke"/>
+          <circle cx=${x(hov).toFixed(1)} cy=${y(hp.v).toFixed(1)} r="3.2" fill="#e8eefc" stroke=${color} stroke-width="1.6" vector-effect="non-scaling-stroke"/>
+        ` : null}
+      </svg>
+      ${hp ? html`
+        <div class=${`chart-tip ${hFrac > 0.72 ? "flip" : ""}`} style=${{ left: (hFrac * 100).toFixed(1) + "%" }}>
+          <b>${fmt(hp.v, unit === "m" ? 2 : hp.v < 10 ? 1 : 0)} ${unit}</b>
+          <span>${fmtT(hp.t)}</span>
+          ${flood != null ? html`<span class=${hp.v >= flood ? "tip-over" : ""}>${hp.v >= flood ? "acima" : "abaixo"} da cota (${fmt(flood)} m)</span>` : null}
+          ${refValue != null && refLabel ? html`<span>${refLabel}: ${fmt(refValue, refValue < 10 ? 1 : 0)} ${unit}</span>` : null}
+        </div>` : null}
+    </div>`;
 }
 function hashStr(s) { let h = 0; for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0; return h; }
 
@@ -457,10 +496,13 @@ function FloodcastPanel({ floodcast, riverColor }) {
           — hoje ~${fmt(today.v, today.v < 10 ? 1 : 0)} ${floodcast.unit}.
         </p>` : null}
       <div class="fcast-chart">
-        <${AreaChart} points=${days} color=${riverColor} markIndex=${7}/>
+        <${AreaChart} points=${days} color=${riverColor} markIndex=${7} unit=${floodcast.unit}
+          refValue=${today?.v ?? null} refLabel="hoje"/>
       </div>
       <${TimeAxis} points=${days}/>
-      <p class="fcast-today">A linha tracejada vertical marca <b>hoje</b> — antes dela, vazão observada pelo modelo; depois, previsão.</p>
+      <p class="fcast-today">A linha tracejada vertical marca <b>hoje</b> (a horizontal, a vazão de hoje) — antes dela,
+        vazão observada pelo modelo; depois, previsão. Vazão (m³/s) não se converte diretamente em cota (m) —
+        compare a curva futura com a linha de hoje para ver a força da subida.</p>
       <p class="fcast-src">
         Modelo global GloFAS (Copernicus/Open-Meteo), célula de ~5 km no ponto da estação — use a
         <b>tendência</b> como sinal antecipado, não o valor absoluto como medição local.
