@@ -680,7 +680,7 @@ function RadarView({ stations }) {
           <button onClick=${() => setPlaying((p) => !p)}>${playing ? "⏸ Pausar" : "▶ Rodar"}</button>
         </div>
       </div>
-      <div class="radar-canvas" style=${{ aspectRatio: `${xs.length}/${ys.length}` }}>
+      <div class="radar-canvas">
         ${ys.map((y) => xs.map((x) => html`
           <img key=${`${x}-${y}`} class="radar-tile"
             style=${{ left: ((xs.indexOf(x)) / xs.length * 100) + "%", top: ((ys.indexOf(y)) / ys.length * 100) + "%",
