@@ -174,7 +174,9 @@ function AreaChart({ points, color, flood, axis = false, markIndex = null }) {
   }
   const W = 300, H = 100, pad = 5;
   let min = Math.min(...data), max = Math.max(...data);
-  if (flood != null) max = Math.max(max, flood);
+  // A cota entra no enquadramento dos DOIS lados: se o rio passou a semana
+  // inteira acima dela (inundação), a linha precisa aparecer abaixo da série.
+  if (flood != null) { max = Math.max(max, flood); min = Math.min(min, flood); }
   // margem de respiro no topo/base para a linha não colar nas bordas
   const span0 = max - min || 1;
   min -= span0 * 0.08;
