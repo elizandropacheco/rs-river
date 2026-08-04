@@ -437,3 +437,55 @@ body::before{ /* leve textura de ruído/vinheta */
 .about-warning{border:1px solid rgba(239,68,68,.35);background:rgba(239,68,68,.07);
   border-radius:10px;padding:10px 14px;color:#fca5a5}
 @media (max-width:640px){.about-levels{grid-template-columns:1fr}}
+
+/* ---------- avisos INMET ---------- */
+.inmet-strip{display:flex;flex-direction:column;gap:8px;margin:14px 0 4px}
+.inmet-item{border:1px solid color-mix(in srgb,var(--ac) 45%,transparent);
+  border-left:4px solid var(--ac);border-radius:12px;background:var(--panel);overflow:hidden}
+.inmet-head{display:flex;align-items:center;gap:10px;width:100%;padding:10px 14px;
+  background:none;border:none;color:var(--txt);font:inherit;font-size:13px;cursor:pointer;text-align:left}
+.inmet-head b{font-weight:700}
+.inmet-dot{width:10px;height:10px;border-radius:50%;background:var(--ac);flex:none;
+  box-shadow:0 0 10px color-mix(in srgb,var(--ac) 80%,transparent)}
+.inmet-sev{color:var(--ac);font-weight:700;font-size:12px;text-transform:uppercase;letter-spacing:.4px}
+.inmet-until,.inmet-cities{color:var(--muted);font-size:12px}
+.inmet-arrow{margin-left:auto;color:var(--dim)}
+.inmet-body{padding:2px 16px 12px;color:var(--muted);font-size:12.5px;line-height:1.65}
+.inmet-body b{color:var(--txt)}
+.inmet-src{color:var(--dim);font-size:11.5px;margin-top:6px}
+
+.card-inmet{margin:2px 0 8px;padding:6px 10px;border-radius:8px;font-size:11.5px;color:var(--txt);
+  border:1px solid color-mix(in srgb,var(--ac) 45%,transparent);border-left:3px solid var(--ac);
+  background:color-mix(in srgb,var(--ac) 8%,transparent)}
+.card-inmet b{font-weight:700}
+.ci-more{margin-left:6px;color:var(--muted)}
+.m-inmet{margin-top:18px;border:1px solid var(--border);border-radius:12px;padding:14px 16px}
+.m-inmet h3{font-size:13.5px;margin-bottom:10px}
+.m-inmet-item{display:flex;align-items:center;gap:8px;font-size:13px;padding:6px 0;color:var(--muted)}
+.m-inmet-item b{color:var(--txt)}
+
+/* ---------- previsão do tempo ---------- */
+.fc-box{margin-top:18px;border:1px solid var(--border);border-radius:12px;padding:14px 16px}
+.fc-box h3{font-size:13.5px;margin-bottom:10px}
+.fc-days{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}
+.fc-day{background:var(--panel);border:1px solid var(--border);border-radius:10px;
+  padding:8px 4px;text-align:center}
+.fc-date{font-size:10.5px;color:var(--muted);text-transform:capitalize}
+.fc-icon{font-size:22px;margin:4px 0}
+.fc-temp{font-size:12px}
+.fc-temp span{color:var(--muted);font-size:11px}
+.fc-rain{font-size:10.5px;color:var(--accent);margin-top:3px}
+.fc-prob{font-size:10px;color:var(--dim)}
+.fc-src{color:var(--dim);font-size:11.5px;margin-top:10px}
+@media (max-width:640px){.fc-days{grid-template-columns:repeat(4,1fr)}.fc-day:nth-child(n+5){display:none}}
+
+/* ---------- satélite ---------- */
+.satwrap{margin-top:16px}
+.sat-head{display:flex;align-items:flex-end;justify-content:space-between;gap:14px;flex-wrap:wrap;margin-bottom:12px}
+.sat-title h2{font-size:18px}
+.sat-title p{color:var(--muted);font-size:13px;margin-top:4px;max-width:640px}
+.sat-canvas{border:1px solid var(--border);border-radius:16px;overflow:hidden;
+  background:#05070d;box-shadow:var(--shadow)}
+.sat-canvas img{display:block;width:100%;height:auto;aspect-ratio:5/3}
+.sat-src{color:var(--dim);font-size:12px;margin-top:10px;line-height:1.6}
+.sat-src a{color:var(--accent)}

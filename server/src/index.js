@@ -12,6 +12,7 @@ import { STATIONS, RIVER_COLORS } from "./stations.js";
 import { SEED } from "./seed.js";
 import * as store from "./store.js";
 import * as settings from "./settings.js";
+import * as weather from "./weather.js";
 import { crawlAll } from "./crawler.js";
 import { WSHub } from "./ws.js";
 
@@ -175,6 +176,23 @@ const server = http.createServer((req, res) => {
     const snaps = Object.values(store.allSnapshots());
     return sendJson(res, 200, { updatedAt: lastRun, count: snaps.length, stations: snaps });
   }
+  // Avisos meteorológicos vigentes no RS (fonte: API oficial do INMET)
+  if (url === "/api/alerts") return sendJson(res, 200, weather.getAlerts());
+
+  // Satélite GOES-19 GEOCOLOR (NOAA/NESDIS STAR) — proxy com cache de 10 min
+  const sat = url.match(/^\/api\/satelite\/(900|1800)\.jpg$/);
+  if (sat) {
+    return void weather.fetchSatellite(Number(sat[1])).then((img) => {
+      if (!img) { res.writeHead(503); return res.end("satélite indisponível"); }
+      res.writeHead(200, {
+        "Content-Type": "image/jpeg",
+        "Cache-Control": "public, max-age=300",
+        ...(img.lastModified ? { "Last-Modified": img.lastModified } : {}),
+      });
+      res.end(img.buf);
+    });
+  }
+
   if (url === "/api/history") {
     const out = {};
     for (const st of STATIONS) out[st.slug] = store.getHistory(st.slug);

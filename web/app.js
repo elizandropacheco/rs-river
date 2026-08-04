@@ -96,6 +96,7 @@ function useLiveData() {
   const [meta, setMeta] = useState({ rivers: {}, intervalMin: 5 });
   const [updatedAt, setUpdatedAt] = useState(null);
   const [connected, setConnected] = useState(false);
+  const [alerts, setAlerts] = useState({ updatedAt: null, list: [] });
 
   const mergeStation = useCallback((snap) => {
     setStations((cur) => {
@@ -109,12 +110,17 @@ function useLiveData() {
     fetch("/api/history").then((r) => r.json()).then((d) => setHistory(d.history || {})).catch(() => {});
   }, []);
 
+  const loadAlerts = useCallback(() => {
+    fetch("/api/alerts").then((r) => r.json()).then((d) => setAlerts(d && d.list ? d : { list: [] })).catch(() => {});
+  }, []);
+
   useEffect(() => {
     fetch("/api/meta").then((r) => r.json()).then(setMeta).catch(() => {});
     fetch("/api/stations").then((r) => r.json()).then((d) => {
       setStations(d.stations || []); setUpdatedAt(d.updatedAt);
     }).catch(() => {});
     loadHistory();
+    loadAlerts();
 
     let ws, alive = true, retry;
     const connect = () => {
@@ -126,17 +132,18 @@ function useLiveData() {
       ws.onmessage = (ev) => {
         try {
           const msg = JSON.parse(ev.data);
-          if (msg.type === "snapshot") { setStations(msg.stations); setUpdatedAt(msg.updatedAt); loadHistory(); }
+          if (msg.type === "snapshot") { setStations(msg.stations); setUpdatedAt(msg.updatedAt); loadHistory(); loadAlerts(); }
           else if (msg.type === "update") { mergeStation(msg.station); }
         } catch {}
       };
     };
     connect();
     const poll = setInterval(loadHistory, 60000);
-    return () => { alive = false; clearTimeout(retry); clearInterval(poll); if (ws) ws.close(); };
-  }, [mergeStation, loadHistory]);
+    const pollAlerts = setInterval(loadAlerts, 5 * 60000);
+    return () => { alive = false; clearTimeout(retry); clearInterval(poll); clearInterval(pollAlerts); if (ws) ws.close(); };
+  }, [mergeStation, loadHistory, loadAlerts]);
 
-  return { stations, history, meta, updatedAt, connected };
+  return { stations, history, meta, updatedAt, connected, alerts };
 }
 
 /* ---------------- gráfico de área (SVG) ----------------
@@ -206,6 +213,12 @@ function StationCard({ st, points, riverColor, onOpen, index }) {
         </div>
         <div class=${`badge ${st.status}`}><span class="bdot"></span>${STATUS_LABEL[st.status]}</div>
       </div>
+
+      ${st.alerts?.length ? html`
+        <div class="card-inmet" style=${{ "--ac": st.alerts[0].cor }} title=${`Aviso INMET vigente até ${fmtAvisoFim(st.alerts[0].fim)}`}>
+          ⚠️ INMET: <b>${st.alerts[0].evento}</b> · ${st.alerts[0].severidade}
+          ${st.alerts.length > 1 ? html`<span class="ci-more">+${st.alerts.length - 1}</span>` : null}
+        </div>` : null}
 
       <div class="metric-row">
         <div class="level">${fmt(level)}<span class="u">m</span></div>
@@ -294,6 +307,117 @@ function WindDay({ d, size = "" }) {
       <div class="wd-spd">${fmt(d.speed, 0)}<span> km/h</span></div>
       ${!small && d.gust != null ? html`<div class="wd-gust">raj. ${fmt(d.gust, 0)}</div>` : null}
       <div class="wd-tag">${WIND_EFFECT[d.effect]?.label || "—"}</div>
+    </div>`;
+}
+
+/* ---------------- previsão do tempo (Open-Meteo, códigos WMO) ---------------- */
+function wmo(code) {
+  const c = code == null ? -1 : Number(code);
+  if (c === 0) return { icon: "☀️", label: "céu limpo" };
+  if (c === 1) return { icon: "🌤️", label: "quase limpo" };
+  if (c === 2) return { icon: "⛅", label: "parcialmente nublado" };
+  if (c === 3) return { icon: "☁️", label: "nublado" };
+  if (c === 45 || c === 48) return { icon: "🌫️", label: "nevoeiro" };
+  if (c >= 51 && c <= 57) return { icon: "🌦️", label: "garoa" };
+  if (c >= 61 && c <= 67) return { icon: "🌧️", label: "chuva" };
+  if (c >= 71 && c <= 77) return { icon: "🌨️", label: "neve" };
+  if (c >= 80 && c <= 82) return { icon: "🌧️", label: "pancadas de chuva" };
+  if (c === 85 || c === 86) return { icon: "🌨️", label: "neve" };
+  if (c === 95) return { icon: "⛈️", label: "tempestade" };
+  if (c === 96 || c === 99) return { icon: "⛈️", label: "tempestade c/ granizo" };
+  return { icon: "·", label: "—" };
+}
+
+function ForecastPanel({ forecast }) {
+  if (!forecast?.length) return null;
+  return html`
+    <div class="fc-box">
+      <h3>🌤️ Previsão do tempo · 7 dias</h3>
+      <div class="fc-days">
+        ${forecast.map((d) => {
+          const w = wmo(d.code);
+          return html`
+            <div class="fc-day" key=${d.date} title=${w.label}>
+              <div class="fc-date">${weekdayLabel(d.date, true)}</div>
+              <div class="fc-icon">${w.icon}</div>
+              <div class="fc-temp"><b>${fmt(d.tmax, 0)}°</b><span> / ${fmt(d.tmin, 0)}°</span></div>
+              <div class="fc-rain">${d.rain != null && d.rain > 0 ? `💧 ${fmt(d.rain, 1)} mm` : "—"}</div>
+              ${d.prob != null ? html`<div class="fc-prob">${fmt(d.prob, 0)}%</div>` : null}
+            </div>`;
+        })}
+      </div>
+      <p class="fc-src">Previsão: Open-Meteo · condição, mín/máx, chuva e probabilidade por dia.</p>
+    </div>`;
+}
+
+/* ---------------- avisos meteorológicos do INMET ---------------- */
+const fmtAvisoFim = (s) => {
+  if (!s) return "";
+  const m = String(s).match(/^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}:\d{2})/);
+  return m ? `${m[3]}/${m[2]} ${m[4]}` : s;
+};
+
+function AlertStrip({ alerts }) {
+  const [openId, setOpenId] = useState(null);
+  if (!alerts?.list?.length) return null;
+  return html`
+    <div class="inmet-strip">
+      ${alerts.list.map((a) => {
+        const open = openId === a.id;
+        return html`
+          <div class="inmet-item" key=${a.id} style=${{ "--ac": a.cor }}>
+            <button class="inmet-head" onClick=${() => {
+              setOpenId(open ? null : a.id);
+              if (!open) track("inmet_alert_open", { alert_event: a.evento, alert_severity: a.severidade });
+            }}>
+              <span class="inmet-dot"></span>
+              <b>INMET: ${a.evento}</b>
+              <span class="inmet-sev">${a.severidade}</span>
+              <span class="inmet-until">até ${fmtAvisoFim(a.fim)}</span>
+              <span class="inmet-cities">${a.cidades.length ? `${a.cidades.length} cidade${a.cidades.length > 1 ? "s" : ""} monitorada${a.cidades.length > 1 ? "s" : ""}` : "RS"}</span>
+              <span class="inmet-arrow">${open ? "▴" : "▾"}</span>
+            </button>
+            ${open ? html`
+              <div class="inmet-body">
+                ${a.riscos?.length ? html`<p><b>Riscos:</b> ${a.riscos.join(" ")}</p>` : null}
+                ${a.instrucoes?.length ? html`<p><b>Instruções:</b> ${a.instrucoes.join(" ")}</p>` : null}
+                <p class="inmet-src">Fonte: alerta oficial do INMET · vigência ${fmtAvisoFim(a.inicio)} → ${fmtAvisoFim(a.fim)}.</p>
+              </div>` : null}
+          </div>`;
+      })}
+    </div>`;
+}
+
+/* ---------------- satélite (NOAA/NESDIS · GOES-19) ---------------- */
+function SatView() {
+  // Recarrega a cada 10 min (mesmo TTL do cache do servidor); o "bucket" no
+  // querystring troca a URL só quando pode haver imagem nova.
+  const [bucket, setBucket] = useState(() => Math.floor(Date.now() / 600000));
+  useEffect(() => {
+    const t = setInterval(() => setBucket(Math.floor(Date.now() / 600000)), 60000);
+    return () => clearInterval(t);
+  }, []);
+  const [big, setBig] = useState(false);
+  const src = `/api/satelite/${big ? 1800 : 900}.jpg?t=${bucket}`;
+  return html`
+    <div class="satwrap">
+      <div class="sat-head">
+        <div class="sat-title">
+          <h2>🛰️ Satélite · GOES-19 GEOCOLOR</h2>
+          <p>Imagem mais recente do sul da América do Sul — nuvens, frentes e tempestades chegando ao RS. Atualiza a cada ~10 min.</p>
+        </div>
+        <div class="sat-tools seg">
+          <button class=${big ? "" : "on"} onClick=${() => setBig(false)}>Leve (900px)</button>
+          <button class=${big ? "on" : ""} onClick=${() => { setBig(true); track("satellite_hd"); }}>Alta (1800px)</button>
+        </div>
+      </div>
+      <div class="sat-canvas">
+        <img src=${src} alt="Imagem de satélite GOES-19 GEOCOLOR do sul da América do Sul (NOAA/NESDIS)" loading="lazy"/>
+      </div>
+      <p class="sat-src">
+        Fonte original: <a href="https://www.star.nesdis.noaa.gov/GOES/sector.php?sat=G19&sector=ssa" target="_blank" rel="noopener">NOAA/NESDIS STAR — GOES-19</a>,
+        composição GEOCOLOR (dia: cor natural · noite: infravermelho). O RS aparece no centro-leste da imagem, entre o Uruguai e Santa Catarina.
+      </p>
     </div>`;
 }
 
@@ -435,6 +559,18 @@ function Modal({ st, points, riverColor, onClose }) {
           ${stat("Última leitura", fmtTime(st.ts), { sub: st.live ? "● ao vivo" : "cache/seed" })}
           ${stat("Situação", STATUS_LABEL[st.status], { color: stColor })}
         </div>
+
+        ${st.alerts?.length ? html`
+          <div class="m-inmet">
+            <h3>⚠️ Avisos meteorológicos vigentes (INMET)</h3>
+            ${st.alerts.map((a) => html`
+              <div class="m-inmet-item" key=${a.id} style=${{ "--ac": a.cor }}>
+                <span class="inmet-dot"></span><b>${a.evento}</b> · ${a.severidade} · até ${fmtAvisoFim(a.fim)}
+              </div>`)}
+            <p class="inmet-src">Detalhes, riscos e instruções na faixa de avisos do topo do painel.</p>
+          </div>` : null}
+
+        <${ForecastPanel} forecast=${st.forecast}/>
 
         ${st.wind?.length ? html`<${WindPanel} wind=${st.wind}/>` : null}
 
@@ -707,7 +843,7 @@ function chip(status, n, label, filter, setFilter) {
 
 /* ---------------- app ---------------- */
 function App() {
-  const { stations, history, meta, updatedAt, connected } = useLiveData();
+  const { stations, history, meta, updatedAt, connected, alerts } = useLiveData();
   const [view, setView] = useState("painel");
   const [sort, setSort] = useState("risk");
   const [filter, setFilter] = useState("all");
@@ -719,11 +855,9 @@ function App() {
   const firstView = useRef(true);
   useEffect(() => {
     if (firstView.current) { firstView.current = false; return; }
-    track("page_view", {
-      page_path: view === "mapa" ? "/mapa" : "/",
-      page_title: view === "mapa" ? "Mapa da Bacia do Guaíba" : "Painel dos Rios",
-      page_location: location.origin + (view === "mapa" ? "/mapa" : "/"),
-    });
+    const path = view === "mapa" ? "/mapa" : view === "satelite" ? "/satelite" : "/";
+    const title = view === "mapa" ? "Mapa da Bacia do Guaíba" : view === "satelite" ? "Satélite GOES-19" : "Painel dos Rios";
+    track("page_view", { page_path: path, page_title: title, page_location: location.origin + path });
   }, [view]);
 
   // Abertura do modal de estação — evento de conteúdo mais valioso do painel.
@@ -768,12 +902,15 @@ function App() {
       <${Topbar} stations=${stations} updatedAt=${updatedAt} connected=${connected}
         intervalMin=${meta.intervalMin} filter=${filter} setFilter=${setFilter}/>
 
+      <${AlertStrip} alerts=${alerts}/>
+
       ${windSt ? html`<${WindStrip} wind=${windSt.wind} city=${windSt.city}/>` : null}
 
       <div class="controls">
         <div class="seg viewseg">
           ${segBtn(view, setView, "painel", "▦ Painel")}
           ${segBtn(view, setView, "mapa", "🗺️ Mapa")}
+          ${segBtn(view, setView, "satelite", "🛰️ Satélite")}
         </div>
         ${view === "painel" ? html`
           <div class="seg">
@@ -795,6 +932,8 @@ function App() {
 
       ${view === "mapa"
         ? html`<${MapView} stations=${stations} rivers=${meta.rivers || {}} onOpen=${(sl) => openStation(sl, "mapa")}/>`
+        : view === "satelite"
+        ? html`<${SatView}/>`
         : html`
           <div class="grid">
             ${vlist.map((st, i) => html`

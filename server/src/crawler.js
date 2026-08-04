@@ -12,6 +12,7 @@
 import { STATIONS, BASE_URL } from "./stations.js";
 import { SEED } from "./seed.js";
 import * as store from "./store.js";
+import * as weather from "./weather.js";
 
 const UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
@@ -183,7 +184,7 @@ export async function crawlStation(station) {
   const seed = SEED[station.slug] || {};
   const base = `${BASE_URL}/${station.slug}`;
 
-  let level = null, rate = null, rain = null, wind = null, ok = false;
+  let level = null, rate = null, rain = null, wind = null, forecast = null, ok = false;
   try {
     // 1) série de nível — longa na 1ª vez (popular histórico), depois só 7 dias
     const deep = store.getHistory(station.slug).length < SEED_MIN_POINTS;
@@ -203,6 +204,9 @@ export async function crawlStation(station) {
 
     // 4) vento (só onde o represamento importa: Guaíba)
     if (station.wind) wind = await fetchWind(station).catch(() => null);
+
+    // 5) previsão do tempo 7 dias (Open-Meteo, cache de 30 min no módulo)
+    forecast = await weather.fetchForecast(station).catch(() => null);
   } catch (e) {
     console.warn(`[crawler] ${station.slug}: ${e.message} (usando dados anteriores/seed)`);
   }
@@ -230,6 +234,9 @@ export async function crawlStation(station) {
       week: pick(rain?.week, prev.rain?.week, seed.rain?.week, 0),
     },
     wind: wind || prev.wind || null,
+    forecast: forecast || prev.forecast || null,
+    // avisos INMET vigentes que incluem este município (atualizados no ciclo)
+    alerts: weather.alertsFor(station.slug),
     marginToFlood: flood != null && lvl != null ? +(flood - lvl).toFixed(2) : null,
     ts: nowIso(),
     live: ok,
@@ -256,6 +263,8 @@ function nowIso() {
 
 // Roda um ciclo completo sobre todas as estações (com concorrência limitada).
 export async function crawlAll(onEach) {
+  // avisos do INMET valem para o ciclo inteiro — uma busca, todas as estações
+  await weather.refreshAlerts();
   const results = [];
   const queue = [...STATIONS];
   const workers = Array.from({ length: 4 }, async () => {

@@ -55,6 +55,15 @@ automática:
 - **Mapa da bacia** sobre o contorno do Rio Grande do Sul, com as estações
   georreferenciadas e **setas indicando o sentido da correnteza** (montante →
   jusante) até o Delta do Jacuí, o Guaíba e a Lagoa dos Patos.
+- **Alertas do INMET**: avisos meteorológicos oficiais vigentes no RS
+  (tempestade, chuvas intensas…), com severidade e cor oficiais, casados
+  automaticamente com as cidades monitoradas — faixa no topo com riscos e
+  instruções, selo no card e no modal de cada estação atingida.
+- **Satélite GOES-19**: nova aba 🛰️ com a composição GEOCOLOR do sul da
+  América do Sul (NOAA/NESDIS STAR), atualizada a cada ~10 min — dá para ver as
+  frentes e tempestades chegando ao RS.
+- **Previsão do tempo 7 dias** por estação (condição, mín/máx, chuva e
+  probabilidade) no modal de detalhes, via Open-Meteo.
 - **Vento sul em Porto Alegre**: previsão de 7 dias com a direção dominante e o
   efeito no Guaíba — vento do quadrante sul **represa** a saída para a Lagoa dos
   Patos e eleva o nível mesmo sem chuva; vento norte favorece o escoamento.
