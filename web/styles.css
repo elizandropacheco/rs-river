@@ -549,3 +549,73 @@ body::before{ /* leve textura de ruído/vinheta */
   .map-promo{flex-direction:column;padding:16px}
   .mp-preview{width:100%;min-height:170px}
 }
+
+/* ================== wow effects (sutis, com significado) ================== */
+
+/* aurora de fundo: deriva lentíssima dos brilhos, quase imperceptível */
+body::after{content:"";position:fixed;inset:-22%;z-index:0;pointer-events:none;
+  background:
+    radial-gradient(640px 420px at 18% 8%, rgba(56,189,248,.075), transparent 62%),
+    radial-gradient(720px 520px at 85% 92%, rgba(129,140,248,.06), transparent 62%);
+  animation:aurora 28s ease-in-out infinite alternate}
+@keyframes aurora{to{transform:translate(3.5%,2.5%) scale(1.05)}}
+
+/* troca de view (Painel/Mapa/Satélite) com fade+deslize */
+.view-fade{animation:view-in .35s cubic-bezier(.2,.7,.3,1) both}
+@keyframes view-in{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+
+/* título com reflexo d'água passando devagar */
+.brand h1{background:linear-gradient(100deg,var(--txt) 0%,var(--txt) 38%,#7dd3fc 50%,var(--txt) 62%,var(--txt) 100%);
+  background-size:230% 100%;-webkit-background-clip:text;background-clip:text;
+  -webkit-text-fill-color:transparent;animation:water-shine 7s linear infinite}
+@keyframes water-shine{to{background-position:-230% 0}}
+
+/* logo Guerreiros do Humaitá em destaque: maior + halo respirando */
+.brand .gh-logo{width:60px;height:60px;border-radius:16px;
+  animation:logo-halo 4.2s ease-in-out infinite}
+.brand .gh-logo img{width:46px;height:46px}
+.brand .gh-logo:hover{transform:translateY(-2px) rotate(-3deg) scale(1.04)}
+@keyframes logo-halo{
+  0%,100%{box-shadow:0 6px 18px -6px rgba(56,189,248,.55),inset 0 0 0 1px rgba(255,255,255,.6)}
+  50%{box-shadow:0 6px 26px -4px rgba(56,189,248,.85),0 0 34px -6px rgba(56,189,248,.35),inset 0 0 0 1px rgba(255,255,255,.6)}
+}
+
+/* faixa-assinatura da ONG antes do rodapé */
+.gh-banner{display:flex;flex-direction:column;align-items:center;gap:8px;margin:44px auto 0;
+  width:fit-content;text-decoration:none;opacity:.8;transition:opacity .25s,transform .25s}
+.gh-banner:hover{opacity:1;transform:translateY(-2px)}
+.gh-banner img{width:min(300px,70vw);height:auto;
+  filter:drop-shadow(0 0 22px rgba(56,189,248,.25))}
+.gh-banner span{color:var(--muted);font-size:12px;font-style:italic;letter-spacing:.4px}
+
+/* gráficos: a linha se desenha ao montar; a área surge em seguida */
+.chart-line{stroke-dasharray:1;stroke-dashoffset:1;animation:chart-draw 1.1s cubic-bezier(.3,.6,.3,1) .1s forwards}
+@keyframes chart-draw{to{stroke-dashoffset:0}}
+.chart-area{opacity:0;animation:chart-fill .7s ease-out .55s forwards}
+@keyframes chart-fill{to{opacity:1}}
+
+/* mapa: correnteza fluindo montante→jusante sobre os rios */
+.river-flow{fill:none;stroke:#dbf1ff;stroke-width:var(--fw,2.2);stroke-linecap:round;
+  stroke-dasharray:0.5 14;opacity:.55;animation:river-run 1.5s linear infinite}
+@keyframes river-run{to{stroke-dashoffset:-14.5}}
+
+/* satélite: imagem entra com fade suave */
+.sat-canvas img{animation:sat-in .7s ease-out both}
+@keyframes sat-in{from{opacity:0;transform:scale(1.015)}to{opacity:1;transform:none}}
+
+/* vento: selo REPRESA (forte) respira de leve */
+.wday.ef-represa .wd-tag{animation:represa-breathe 2.2s ease-in-out infinite}
+@keyframes represa-breathe{50%{background:rgba(239,68,68,.34);box-shadow:0 0 10px -2px rgba(239,68,68,.55)}}
+
+/* destaque do mapa: brilho varrendo de tempos em tempos */
+.map-promo::after{content:"";position:absolute;top:0;left:-45%;width:38%;height:100%;
+  background:linear-gradient(100deg,transparent,rgba(150,205,255,.09),transparent);
+  animation:sweep 8s linear infinite;pointer-events:none}
+
+/* acessibilidade: quem prefere menos movimento, recebe menos movimento */
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;
+    transition-duration:.01ms!important;scroll-behavior:auto!important}
+  .chart-line{stroke-dasharray:none;stroke-dashoffset:0}
+  .chart-area{opacity:1}
+}

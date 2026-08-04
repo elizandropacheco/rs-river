@@ -184,8 +184,8 @@ function AreaChart({ points, color, flood, axis = false }) {
       ${floodOn
         ? html`<line x1="0" x2=${W} y1=${floodY} y2=${floodY} stroke="#ef4444" stroke-width="1.2" stroke-dasharray="5 4" opacity="0.85" vector-effect="non-scaling-stroke"/>`
         : null}
-      <path d=${area} fill=${`url(#${gid})`}/>
-      <path d=${line} fill="none" stroke=${color} stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round" vector-effect="non-scaling-stroke"/>
+      <path class="chart-area" d=${area} fill=${`url(#${gid})`}/>
+      <path class="chart-line" pathLength="1" d=${line} fill="none" stroke=${color} stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round" vector-effect="non-scaling-stroke"/>
       <circle cx=${x(data.length - 1).toFixed(1)} cy=${y(last).toFixed(1)} r="3.4" fill=${color} vector-effect="non-scaling-stroke">
         <animate attributeName="r" values="3.4;6;3.4" dur="1.8s" repeatCount="indefinite"/>
       </circle>
@@ -699,8 +699,10 @@ function MapView({ stations, rivers, onOpen }) {
     if (full.length < 2) return null;
     const color = rivers[f.river] || "#38bdf8";
     const segs = curveSegments(full);
+    const d = pathFromSegments(segs);
     return html`<g key=${f.river}>
-      <path class="river-path" d=${pathFromSegments(segs)} stroke=${color}/>
+      <path class="river-path" d=${d} stroke=${color}/>
+      <path class="river-flow" d=${d} style=${{ "--fw": (2.2 * sc).toFixed(2) }}/>
       ${segs.map((s, i) => {
         if (Math.hypot(s.p2.x - s.p1.x, s.p2.y - s.p1.y) < 26 * sc) return null; // segmento curto
         const a = bezAt(s, 0.5);
@@ -1008,21 +1010,30 @@ function App() {
         ` : null}
       </div>
 
-      ${view === "mapa"
-        ? html`<${MapView} stations=${stations} rivers=${meta.rivers || {}} onOpen=${(sl) => openStation(sl, "mapa")}/>`
-        : view === "satelite"
-        ? html`<${SatView}/>`
-        : html`
-          <${MapPromo} stations=${stations} rivers=${meta.rivers || {}}
-            onOpen=${() => { setView("mapa"); track("map_promo_click"); }}/>
-          <div class="grid">
-            ${vlist.map((st, i) => html`
-              <${StationCard} key=${st.slug} st=${st} index=${i}
-                points=${history[st.slug]} riverColor=${colorFor(st.river)} onOpen=${(s) => openStation(s.slug, "painel")}/>
-            `)}
-          </div>
-          ${vlist.length === 0 ? html`<div class="empty">Nenhuma estação para este filtro.</div>` : null}
-        `}
+      <div class="view-fade" key=${view}>
+        ${view === "mapa"
+          ? html`<${MapView} stations=${stations} rivers=${meta.rivers || {}} onOpen=${(sl) => openStation(sl, "mapa")}/>`
+          : view === "satelite"
+          ? html`<${SatView}/>`
+          : html`
+            <${MapPromo} stations=${stations} rivers=${meta.rivers || {}}
+              onOpen=${() => { setView("mapa"); track("map_promo_click"); }}/>
+            <div class="grid">
+              ${vlist.map((st, i) => html`
+                <${StationCard} key=${st.slug} st=${st} index=${i}
+                  points=${history[st.slug]} riverColor=${colorFor(st.river)} onOpen=${(s) => openStation(s.slug, "painel")}/>
+              `)}
+            </div>
+            ${vlist.length === 0 ? html`<div class="empty">Nenhuma estação para este filtro.</div>` : null}
+          `}
+      </div>
+
+      <a class="gh-banner" href="https://guerreirosdohumaita.com.br" target="_blank" rel="noopener"
+         title="Guerreiros do Humaitá — O Povo pelo Povo!">
+        <img src="https://guerreirosdohumaita.com.br/wp-content/uploads/2024/05/logo-guerreiros-branco-1024x411.png"
+             alt="Guerreiros do Humaitá" loading="lazy"/>
+        <span>O Povo pelo Povo!</span>
+      </a>
 
       <div class="footer">
         Dados coletados automaticamente de <a href="https://nivelguaiba.com.br" target="_blank" rel="noopener">nivelguaiba.com.br</a>

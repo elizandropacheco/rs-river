@@ -29,7 +29,10 @@
       background: linear-gradient(180deg, var(--panel) 0%, var(--panel2) 100%);
       border: 1px solid var(--line); border-radius: 14px; padding: 22px;
       box-shadow: 0 12px 40px rgba(0,0,0,.35); margin-bottom: 16px;
+      animation: rise .45s cubic-bezier(.2,.7,.3,1) both;
     }
+    @keyframes rise { from { opacity: 0; transform: translateY(14px) } }
+    @media (prefers-reduced-motion: reduce) { * { animation-duration: .01ms !important; transition-duration: .01ms !important } }
     .card h2 { font-size: 15px; margin-bottom: 4px; display: flex; align-items: center; gap: 8px; }
     .card .sub { color: var(--muted); font-size: 12.5px; margin-bottom: 16px; }
     label { display: block; font-size: 12px; color: var(--muted); margin: 14px 0 5px; text-transform: uppercase; letter-spacing: .6px; }
